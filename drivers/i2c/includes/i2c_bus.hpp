@@ -49,6 +49,8 @@ void I2C3_EV_IRQHandler(void);
 
 class I2cDevice;
 
+struct I2cBusConfig;
+
 class I2cBus
 {
     protected:
@@ -71,27 +73,11 @@ class I2cBus
         /*
          *  @brief Initializes the I2C handle with the given parameters
          *
-         *	@param clockSpeed Clock speed to be configured for the bus.
-         *	@param addressing7Bit Use 7 bit addresses if true. 10 bit addresses if false.
-         *	@param dutyCycle Duty cycle type.
-         *	@param generalCall Configure if the bus should accept general calls.
-         *	@param clockStretching Configure if the bus should use clock stretching.
-         *	@param dualAddress Configure if the bus should use dual addresses in slave mode.
-         *	@param ownAddress1 Configure address 1 for the bus in slave mode.
-         *	@param ownAddress2 Configure address 2 for the bus in slave mode.
+         *	@param config All the configuration parameters passed in the constructor.
          *
          *  @throws I2cException: If there's a HAL error.
          */
-        void initHandle(
-            uint32_t clockSpeed,
-            bool addressing7Bit,
-            I2cDutyCycle dutyCycle,
-            bool generalCall,
-            bool clockStretching,
-            bool dualAddress,
-            uint16_t ownAddress1,
-            uint16_t ownAddress2
-        );
+        void initHandle(const I2cBusConfig& config);
 
         /*
          *  @brief Registers the interrupt callbacks to the HAL handle.
@@ -108,29 +94,33 @@ class I2cBus
 
         /*
          *  @brief Checks whether the addresses are valid, taking into account the addressing mode
-         *  (7 bit or 10 bit) and the dual or single address configuration
+         *  (7 bit or 10 bit).
          *
          *	@param ownAddress1 Address 1 to be checked
          *	@param ownAddress2 Address 2 to be checked
-         *	@param dualAddress Whether dual slave addresses mode is used.
          *	@param addressing7bit Addressing mode to consider (false: 10 bit- true: 7 bit)
          *
          *  @throws I2cException: When the provided parameters are not in a valid state.
          */
-        bool areAddressesValid(uint16_t ownAddress1, uint16_t ownAddress2, bool dualAddress, bool addressing7bit);
+        void areAddressesValid(uint16_t ownAddress1, uint16_t ownAddress2, bool addressing7bit);
 
         void sendTransaction(I2cTransaction &transaction);
 
         void sendNextTransaction(void);
 
-        void setTransaction( I2cTransaction &transaction);
+        void setTransaction(I2cTransaction &transaction);
 
         static void transactionCompleteCallback(I2C_HandleTypeDef *handle);
 
         static void transactionErrorCallback(I2C_HandleTypeDef *handle);
 
     public:
+        class Builder;
+
         I2C_HandleTypeDef* getHandle(void);
+
+        explicit I2cBus(const I2cBusConfig& config);
+
         I2cBus(
             std::string name,
             Queue<I2cTransaction> *queue,
