@@ -1,4 +1,5 @@
 #include "i2c_bus.hpp"
+#include "i2c_bus_builder.hpp"
 
 #include <algorithm>
 
@@ -126,66 +127,37 @@ void I2cBus::handleInterrupt(I2cBusSelection bus, I2cInterruptType type)
     }
 }
 
-I2cBus::I2cBus(
-    std::string name,
-    Queue<I2cTransaction> *queue,
-    I2cBusSelection bus,
-    uint32_t clockSpeed,
-    bool addressing7Bit,
-    I2cDutyCycle dutyCycle,
-    bool masterOnly,
-    bool dualAddress,
-    uint16_t ownAddress1,
-    uint16_t ownAddress2,
-    bool clockStretching,
-    bool generalCall
-) : name(name), queue(queue), bus(bus)
+I2cBus::I2cBus(const I2cBusConfig& config)
+    : queue(config.queue), bus(config.bus), name(config.name)
 {
-    registerDriver(bus);
+    registerDriver(this->bus);
 
-    if(clockSpeed <= I2C_FAST_MODE_CUTOFF_FREQUENCY)
+    if(config.clockSpeed <= I2C_FAST_MODE_CUTOFF_FREQUENCY)
     {
         this->fastMode = false;
     }
 
-    if(masterOnly)
-    {
-        clockStretching = false;
-        generalCall = false;
-        dualAddress = false;
-        ownAddress1 = 0x0;
-        ownAddress2 = 0x0;
-    }
-
+    bool masterOnly = (config.ownAddress1 == 0x0) && (config.ownAddress2 == 0x0);
     if(!masterOnly)
-    {
-        areAddressesValid(ownAddress1, ownAddress2, dualAddress, addressing7Bit);
-    }
+        areAddressesValid(config.ownAddress1, config.ownAddress2, config.addressing7Bit);
 
-    initHandle(clockSpeed, addressing7Bit, dutyCycle, dualAddress, generalCall, clockStretching, ownAddress1, ownAddress2);
+    initHandle(config);
 
     initGpio();
     initNvic();
 }
 
-bool I2cBus::areAddressesValid(uint16_t ownAddress1, uint16_t ownAddress2, bool dualAddress, bool addressing7bit)
+void I2cBus::areAddressesValid(uint16_t ownAddress1, uint16_t ownAddress2, bool addressing7bit)
 {
-    if(dualAddress)
-    {
-        if(checkAddressValidity(ownAddress1, addressing7bit) && checkAddressValidity(ownAddress2, addressing7bit))
-        {
-            return true;
-        }
-    }
-    else
-    {
-        if(checkAddressValidity(ownAddress1, addressing7bit))
-        {
-            return true;
-        }
-    }
+    if(!checkAddressValidity(ownAddress1, addressing7bit))
+        throw I2cException("The provided I2C address 1 is not valid");
 
-    throw I2cException("The provided I2C addresses are not valid");
+    // If ownAddress 2 is 0x00, single address is used.
+    if(ownAddress2 != 0x00)
+        return;
+
+    if(!checkAddressValidity(ownAddress2, addressing7bit))
+        throw I2cException("The provided I2C address 2 is not valid");
 }
 
 bool I2cBus::checkAddressValidity(uint16_t address, bool addressing7bit)
@@ -235,19 +207,10 @@ void I2cBus::registerDriver(I2cBusSelection bus)
     drivers[i] = this;
 }
 
-void I2cBus::initHandle(
-    uint32_t clockSpeed,
-    bool addressing7Bit,
-    I2cDutyCycle dutyCycle,
-    bool generalCall,
-    bool clockStretching,
-    bool dualAddress,
-    uint16_t ownAddress1,
-    uint16_t ownAddress2
-)
+void I2cBus::initHandle(const I2cBusConfig& config)
 {
     I2C_TypeDef *i2cInstance;
-    switch(bus)
+    switch(this->bus)
     {
         case I2C_BUS_1:
             i2cInstance = I2C1;
@@ -262,23 +225,24 @@ void I2cBus::initHandle(
             throw I2cException();
     }
 
-    handle.Instance = i2cInstance;
-    handle.Init.ClockSpeed = clockSpeed;
-    handle.Init.AddressingMode = addressing7Bit ? I2C_ADDRESSINGMODE_7BIT : I2C_ADDRESSINGMODE_10BIT;
+    this->handle.Instance = i2cInstance;
+    this->handle.Init.ClockSpeed = config.clockSpeed;
+    this->handle.Init.AddressingMode = config.addressing7Bit ? I2C_ADDRESSINGMODE_7BIT : I2C_ADDRESSINGMODE_10BIT;
+
     // Duty cycle configuration is only taken into account when fast mode is used.
-    handle.Init.DutyCycle = dutyCycle;
+    this->handle.Init.DutyCycle = config.dutyCycle;
 
     // Slave configurations
-    handle.Init.GeneralCallMode = generalCall ? I2C_GENERALCALL_ENABLE : I2C_GENERALCALL_DISABLE;
-    handle.Init.NoStretchMode = clockStretching ? I2C_NOSTRETCH_ENABLE : I2C_NOSTRETCH_DISABLE;
+    this->handle.Init.GeneralCallMode = config.generalCall ? I2C_GENERALCALL_ENABLE : I2C_GENERALCALL_DISABLE;
+    this->handle.Init.NoStretchMode = config.clockStretching ? I2C_NOSTRETCH_ENABLE : I2C_NOSTRETCH_DISABLE;
 
-    handle.Init.DualAddressMode = dualAddress ? I2C_DUALADDRESS_ENABLE : I2C_DUALADDRESS_DISABLE;
-    handle.Init.OwnAddress1 = ownAddress1;
-    handle.Init.OwnAddress2 = ownAddress2;
+    this->handle.Init.DualAddressMode = (config.ownAddress2 != 0x00) ? I2C_DUALADDRESS_ENABLE : I2C_DUALADDRESS_DISABLE;
+    this->handle.Init.OwnAddress1 = config.ownAddress1;
+    this->handle.Init.OwnAddress2 = config.ownAddress2;
 
-    handle.MspInitCallback = nullptr;
+    this->handle.MspInitCallback = nullptr;
 
-    if(HAL_I2C_Init(&handle) != HAL_OK)
+    if(HAL_I2C_Init(&this->handle) != HAL_OK)
     {
         throw I2cException("There was an error initializing the I2C driver.");
     }

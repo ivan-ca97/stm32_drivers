@@ -48,7 +48,8 @@ typedef enum
 }
 TimerSelection;
 
-struct TimerConfig {
+struct TimerConfig
+{
     uint32_t count = 0;
     uint32_t frequency = 0;
     uint32_t prescaler = 0;
