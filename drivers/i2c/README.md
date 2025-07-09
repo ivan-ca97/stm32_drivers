@@ -9,7 +9,7 @@ This driver uses a C++ class with to use the I2C buses for the stm32f401ccu6 MCU
 ```cmake
 set(STM32_BASE_LIBRARIES stm32cubemx CACHE INTERNAL "STM32 base dependencies")
 ```
-4. This uses the HAL library. Set `USE_HAL_I2C_REGISTER_CALLBACKS` to `true` to work correctly.
+4. This driver uses the full LL library. Define `USE_FULL_LL_DRIVER` and include the sources `stm32f4xx_ll_i2c.c` and `stm32f4xx_ll_rcc.c` when compiling the library.
 
 ## Interrupts
 To allow the use of interrupts handlers as expected, include the source file `sources/i2c_interrupt_handlers.cpp` under `target_sources` in the main `CMakeLists.txt`, otherwise they won't be correctly linked.
