@@ -3,6 +3,7 @@
 #include <stdint.h>
 
 class I2cDevice;
+class I2cBus;
 
 typedef void (*Callback)(void*);
 
@@ -17,9 +18,20 @@ typedef enum
 {
     REGISTER_NULL,
     REGISTER_8_BITS,
-    REGISTER_16_BITS
+    REGISTER_16_BITS,
+    REGISTER_24_BITS,
+    REGISTER_32_BITS
 }
 RegisterLength;
+
+typedef enum
+{
+    TRANSACTION_PENDING,
+    TRANSACTION_IN_PROGRESS,
+    TRANSACTION_SENT,
+    TRANSACTION_ERROR,
+}
+I2cTransactionStatus;
 
 class I2cTransaction
 {
@@ -29,8 +41,10 @@ class I2cTransaction
         uint8_t* data;
         uint16_t dataBytes;
         I2cDevice* device;
-        uint16_t deviceRegister;
+        I2cBus* bus;
+        uint32_t deviceRegister;
         RegisterLength deviceRegisterBytes;
+        I2cTransactionStatus status = TRANSACTION_PENDING;
 
         void* preCallbackParameters = nullptr;
         void* postCallbackParameters = nullptr;
@@ -42,15 +56,15 @@ class I2cTransaction
     public:
         I2cTransaction();
 
-        static I2cTransaction I2cTxTransaction(I2cDevice *device, uint8_t* data, uint16_t dataBytes, uint16_t deviceRegister = 0, RegisterLength deviceRegisterBytes = REGISTER_NULL);
+        static I2cTransaction I2cTxTransaction(I2cDevice *device, uint8_t* data, uint16_t dataBytes, uint32_t deviceRegister = 0, RegisterLength deviceRegisterBytes = REGISTER_NULL);
 
-        static I2cTransaction I2cRxTransaction(I2cDevice *device, uint8_t* data, uint16_t dataBytes, uint16_t deviceRegister = 0, RegisterLength deviceRegisterBytes = REGISTER_NULL);
+        static I2cTransaction I2cRxTransaction(I2cDevice *device, uint8_t* data, uint16_t dataBytes, uint32_t deviceRegister = 0, RegisterLength deviceRegisterBytes = REGISTER_NULL);
 
-        I2cTransaction(TransactionDirection direction, uint8_t* data, uint16_t dataBytes, I2cDevice *device, uint16_t address, uint16_t deviceRegister = 0, RegisterLength deviceRegisterBytes = REGISTER_NULL);
+        I2cTransaction(TransactionDirection direction, uint8_t* data, uint16_t dataBytes, I2cDevice *device, uint16_t address, uint32_t deviceRegister = 0, RegisterLength deviceRegisterBytes = REGISTER_NULL);
 
-        I2cTransaction(TransactionDirection direction, uint8_t* data, uint16_t dataBytes, uint16_t address, uint16_t deviceRegister = 0, RegisterLength deviceRegisterBytes = REGISTER_NULL);
+        I2cTransaction(TransactionDirection direction, uint8_t* data, uint16_t dataBytes, uint16_t address, uint32_t deviceRegister = 0, RegisterLength deviceRegisterBytes = REGISTER_NULL);
 
-        I2cTransaction(TransactionDirection direction, uint8_t* data, uint16_t dataBytes, I2cDevice *device, uint16_t deviceRegister = 0, RegisterLength deviceRegisterBytes = REGISTER_NULL);
+        I2cTransaction(TransactionDirection direction, uint8_t* data, uint16_t dataBytes, I2cDevice *device, uint32_t deviceRegister = 0, RegisterLength deviceRegisterBytes = REGISTER_NULL);
 
         void setPreCallback(Callback callback, void* parameters);
 
@@ -58,17 +72,41 @@ class I2cTransaction
 
         void setErrorCallback(Callback callback, void* parameters);
 
+        void attachBus(I2cBus* bus);
+
         uint16_t getAddress(void);
 
         uint8_t* getDataPointer(void);
 
         uint16_t getDataLenthBytes(void);
 
+        uint16_t getCurrentIndex(void);
+
+        bool hasPendingBytes(void);
+
+        uint8_t getByte(uint16_t index);
+
+        void setByte(uint8_t byte, uint16_t index);
+
         uint16_t getRegister(void);
 
-        RegisterLength getRegisterBytes(void);
+        bool hasRegister(void);
 
-        TransactionDirection getDirection();
+        uint8_t getRegisterByte(uint8_t index);
+
+        uint8_t getRegisterLengthBytes(void);
+
+        TransactionDirection getDirection(void);
+
+        bool isRead(void);
+
+        bool isWrite(void);
+
+        I2cTransactionStatus getStatus(void);
+
+        void setStatus(I2cTransactionStatus newStatus);
+
+        bool isDone(void);
 
         /*
          *  @brief Calls the pre-transaction callback before the transaction is set, with the configured parameters.

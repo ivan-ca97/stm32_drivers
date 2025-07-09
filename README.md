@@ -11,3 +11,7 @@ set(STM32_BASE_LIBRARIES stm32cubemx CACHE INTERNAL "STM32 base dependencies")
     1. Disable all `-fno-exceptions` flags
     2. Change  `--specs=nano.specs` with `--specs=nosys.specs` in `gcc-arm-none-eabi.cmake`. This will make the binary larger but allows exceptions to work as expected. Otherwise, they will direct to the `_kill()` syscall
 3. To allow the use of interrupts handlers as expected, include the source files where the interrupts are defined for each driver under `target_sources` in the main `CMakeLists.txt`, otherwise they won't be correctly linked.
+
+## Specific requirements
+### I2C
+This driver uses the full LL library. Define `USE_FULL_LL_DRIVER` (for example adding `add_compile_definitions(USE_FULL_LL_DRIVER)` in the `CMakeFile.txt`) and include the sources `stm32f4xx_ll_i2c.c` and `stm32f4xx_ll_rcc.c` when compiling the library.

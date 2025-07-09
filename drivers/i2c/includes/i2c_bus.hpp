@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 #include <array>
-#include "stm32f4xx_hal.h"
+#include "stm32f4xx.h"
 
 #include "i2c_driver_exceptions.hpp"
 #include "i2c_transaction.hpp"
@@ -51,6 +51,24 @@ class I2cDevice;
 
 struct I2cBusConfig;
 
+typedef enum
+{
+    I2C_BUS_IDLE,
+    I2C_BUS_START_ATTEMPT,
+    I2C_BUS_SEND_SLAVE_ADDRESS,
+    I2C_BUS_SEND_REGISTER,
+
+    I2C_BUS_SEND_DATA,
+
+    I2C_BUS_LAST_REGISTER_BYTE,
+    I2C_BUS_REPEATED_START,
+    I2C_BUS_REPEATED_START_ACK_ADDR,
+    I2C_BUS_RECEIVE_DATA,
+
+    I2C_BUS_LAST_DATA_BYTE,
+}
+I2cBusStatus;
+
 class I2cBus
 {
     protected:
@@ -62,7 +80,7 @@ class I2cBus
 
         I2cTransaction* currentTransaction;
 
-        I2C_HandleTypeDef handle = {};
+        I2C_TypeDef* instance = nullptr;
 
         I2cBusSelection bus;
 
@@ -70,21 +88,18 @@ class I2cBus
 
         std::string name;
 
+        I2cBusStatus status = I2C_BUS_IDLE;
+
+        uint32_t currentIndex;
+
         /*
-         *  @brief Initializes the I2C handle with the given parameters
+         *  @brief Initializes the I2C instance with the given parameters
          *
          *	@param config All the configuration parameters passed in the constructor.
          *
          *  @throws I2cException: If there's a HAL error.
          */
-        void initHandle(const I2cBusConfig& config);
-
-        /*
-         *  @brief Registers the interrupt callbacks to the HAL handle.
-         *
-         *  @throws I2cException: If there's a HAL error.
-         */
-        void registerCallbacks(void);
+        void initInstance(const I2cBusConfig& config);
 
         void registerDriver(I2cBusSelection bus);
 
@@ -104,20 +119,22 @@ class I2cBus
          */
         void areAddressesValid(uint16_t ownAddress1, uint16_t ownAddress2, bool addressing7bit);
 
-        void sendTransaction(I2cTransaction &transaction);
-
         void sendNextTransaction(void);
 
         void setTransaction(I2cTransaction &transaction);
 
-        static void transactionCompleteCallback(I2C_HandleTypeDef *handle);
+        void eventCallback();
 
-        static void transactionErrorCallback(I2C_HandleTypeDef *handle);
+        void errorCallback();
+
+        void sendSlaveAddress();
+
+        void eventMasterCallback();
 
     public:
         class Builder;
 
-        I2C_HandleTypeDef* getHandle(void);
+        I2C_TypeDef* getInstance(void);
 
         explicit I2cBus(const I2cBusConfig& config);
 
@@ -146,6 +163,10 @@ class I2cBus
         bool checkAddressValidity(uint16_t address, bool addressing7bit);
 
         I2cBusSelection getBusNumber(void);
+
+        I2cBusStatus getStatus();
+
+        uint32_t getCurrentIndex();
 
     friend class I2cDevice;
 

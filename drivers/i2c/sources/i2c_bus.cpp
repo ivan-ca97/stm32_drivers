@@ -3,45 +3,18 @@
 
 #include <algorithm>
 
-#include "stm32f4xx_it.h"
+#include "stm32f4xx_ll_i2c.h"
 
 #define I2C_FAST_MODE_CUTOFF_FREQUENCY 100000
-
+#define I2C_EVENT_IRQ_PRIORITY 1
+#define I2C_ERROR_IRQ_PRIORITY 1
 
 // Initialize with empty drivers array.
 std::array<I2cBus*, I2C_BUS_MAX> I2cBus::drivers = {};
 
-I2C_HandleTypeDef* I2cBus::getHandle(void)
+I2C_TypeDef* I2cBus::getInstance(void)
 {
-    return &handle;
-}
-
-void I2cBus::transactionErrorCallback(I2C_HandleTypeDef *handle)
-{
-    // Get the bus object
-    I2cBus* bus = reinterpret_cast<I2cBus*>(
-        reinterpret_cast<uint8_t*>(handle) - offsetof(I2cBus, handle)
-    );
-
-    // Dequeues and calls the post-transaction callback once it's complete.
-    I2cTransaction transaction = bus->queue->dequeue();
-    transaction.errorCallback();
-
-    bus->sendNextTransaction();
-}
-
-void I2cBus::transactionCompleteCallback(I2C_HandleTypeDef *handle)
-{
-    // Get the bus object
-    I2cBus* bus = reinterpret_cast<I2cBus*>(
-        reinterpret_cast<uint8_t*>(handle) - offsetof(I2cBus, handle)
-    );
-
-    // Dequeues and calls the post-transaction callback once it's complete.
-    I2cTransaction transaction = bus->queue->dequeue();
-    transaction.postCallback();
-
-    bus->sendNextTransaction();
+    return instance;
 }
 
 void I2cBus::sendNextTransaction(void)
@@ -52,62 +25,44 @@ void I2cBus::sendNextTransaction(void)
         return;
     }
 
-    currentTransaction->preCallback();
-
-    sendTransaction(*currentTransaction);
-}
-
-void I2cBus::sendTransaction(I2cTransaction &transaction)
-{
-    HAL_StatusTypeDef error;
-    TransactionDirection direction = transaction.getDirection();
-
-    uint16_t address = transaction.getAddress();
-    uint8_t* data = transaction.getDataPointer();
-    uint16_t dataSize = transaction.getDataLenthBytes();
-    uint8_t deviceRegister = transaction.getRegister();
-    RegisterLength deviceRegisterBytes = transaction.getRegisterBytes();
-
-    if(deviceRegisterBytes != REGISTER_NULL)
-    {
-        uint8_t deviceRegisterSize = (deviceRegisterBytes == REGISTER_8_BITS ? I2C_MEMADD_SIZE_8BIT : I2C_MEMADD_SIZE_16BIT);
-        switch(direction)
-        {
-            case TRANSACTION_RX:
-                error = HAL_I2C_Mem_Read_IT(&handle, address << 1, deviceRegister, deviceRegisterSize, data, dataSize);
-                break;
-            case TRANSACTION_TX:
-                error = HAL_I2C_Mem_Write_IT(&handle, address << 1, deviceRegister, deviceRegisterSize, data, dataSize);
-                break;
-        }
-    }
-    else
-    {
-        switch(direction)
-        {
-            case TRANSACTION_RX:
-                error = HAL_I2C_Master_Receive_IT(&handle, address << 1, data, dataSize);
-                break;
-            case TRANSACTION_TX:
-                error = HAL_I2C_Master_Transmit_IT(&handle, address << 1, data, dataSize);
-                break;
-        }
-    }
-
-    if(error != HAL_OK)
-    {
-        throw I2cException("There was an error setting up the transaction.");
-    }
+    LL_I2C_GenerateStartCondition(instance);
+    this->status = I2C_BUS_START_ATTEMPT;
 }
 
 void I2cBus::setTransaction(I2cTransaction &transaction)
 {
     queue->enqueue(transaction);
 
-    if(queue->size() == 1 && HAL_I2C_GetState(&handle) == HAL_I2C_STATE_READY)
+    if(queue->size() == 1 && status == I2C_BUS_IDLE)
     {
         sendNextTransaction();
     }
+}
+
+void I2cBus::eventCallback()
+{
+    this->eventMasterCallback();
+}
+
+void I2cBus::errorCallback()
+{
+    if (LL_I2C_IsActiveFlag_AF(I2C1)) {
+        LL_I2C_ClearFlag_AF(I2C1);
+    }
+
+    if (LL_I2C_IsActiveFlag_ARLO(I2C1)) {
+        LL_I2C_ClearFlag_ARLO(I2C1);
+    }
+
+    if (LL_I2C_IsActiveFlag_BERR(I2C1)) {
+        LL_I2C_ClearFlag_BERR(I2C1);
+    }
+
+    if (LL_I2C_IsActiveFlag_OVR(I2C1)) {
+        LL_I2C_ClearFlag_OVR(I2C1);
+    }
+
+    this->status = I2C_BUS_IDLE;
 }
 
 void I2cBus::handleInterrupt(I2cBusSelection bus, I2cInterruptType type)
@@ -118,10 +73,11 @@ void I2cBus::handleInterrupt(I2cBusSelection bus, I2cInterruptType type)
         switch(type)
         {
         case I2C_EVENT:
-            HAL_I2C_EV_IRQHandler(&driver->handle);
+            // HAL_I2C_EV_IRQHandler(&driver->handle);
+            driver->eventCallback();
             break;
         case I2C_ERROR:
-            HAL_I2C_ER_IRQHandler(&driver->handle);
+            driver->errorCallback();
             break;
         }
     }
@@ -141,7 +97,7 @@ I2cBus::I2cBus(const I2cBusConfig& config)
     if(!masterOnly)
         areAddressesValid(config.ownAddress1, config.ownAddress2, config.addressing7Bit);
 
-    initHandle(config);
+    initInstance(config);
 
     initGpio();
     initNvic();
@@ -153,7 +109,7 @@ void I2cBus::areAddressesValid(uint16_t ownAddress1, uint16_t ownAddress2, bool 
         throw I2cException("The provided I2C address 1 is not valid");
 
     // If ownAddress 2 is 0x00, single address is used.
-    if(ownAddress2 != 0x00)
+    if(ownAddress2 == 0x00)
         return;
 
     if(!checkAddressValidity(ownAddress2, addressing7bit))
@@ -182,6 +138,16 @@ I2cBusSelection I2cBus::getBusNumber(void)
     return bus;
 }
 
+I2cBusStatus I2cBus::getStatus()
+{
+    return status;
+}
+
+uint32_t I2cBus::getCurrentIndex()
+{
+    return currentIndex;
+}
+
 void I2cBus::registerDriver(I2cBusSelection bus)
 {
     uint8_t i;
@@ -207,81 +173,68 @@ void I2cBus::registerDriver(I2cBusSelection bus)
     drivers[i] = this;
 }
 
-void I2cBus::initHandle(const I2cBusConfig& config)
+void I2cBus::initInstance(const I2cBusConfig& config)
 {
-    I2C_TypeDef *i2cInstance;
-    switch(this->bus)
+    switch (this->bus)
     {
         case I2C_BUS_1:
-            i2cInstance = I2C1;
+            instance = I2C1;
             break;
         case I2C_BUS_2:
-            i2cInstance = I2C2;
+            instance = I2C2;
             break;
         case I2C_BUS_3:
-            i2cInstance = I2C3;
+            instance = I2C3;
             break;
         default:
             throw I2cException();
     }
 
-    this->handle.Instance = i2cInstance;
-    this->handle.Init.ClockSpeed = config.clockSpeed;
-    this->handle.Init.AddressingMode = config.addressing7Bit ? I2C_ADDRESSINGMODE_7BIT : I2C_ADDRESSINGMODE_10BIT;
+    LL_I2C_Disable(instance);
+    LL_I2C_DeInit(instance);
 
-    // Duty cycle configuration is only taken into account when fast mode is used.
-    this->handle.Init.DutyCycle = config.dutyCycle;
+    uint32_t dutyCycle;
+    if(config.dutyCycle == I2C_DUTY_CYCLE_2)
+        dutyCycle = LL_I2C_DUTYCYCLE_2;
+    if(config.dutyCycle == I2C_DUTY_CYCLE_16_9)
+        dutyCycle = LL_I2C_DUTYCYCLE_16_9;
 
-    // Slave configurations
-    this->handle.Init.GeneralCallMode = config.generalCall ? I2C_GENERALCALL_ENABLE : I2C_GENERALCALL_DISABLE;
-    this->handle.Init.NoStretchMode = config.clockStretching ? I2C_NOSTRETCH_ENABLE : I2C_NOSTRETCH_DISABLE;
+    LL_I2C_InitTypeDef i2cInit;
+    LL_I2C_StructInit(&i2cInit);
+    i2cInit.PeripheralMode  = LL_I2C_MODE_I2C;
+    i2cInit.ClockSpeed      = config.clockSpeed;
+    i2cInit.DutyCycle       = dutyCycle;
+    i2cInit.OwnAddress1     = config.ownAddress1;
+    i2cInit.TypeAcknowledge = LL_I2C_ACK;
+    i2cInit.OwnAddrSize     = config.addressing7Bit ? LL_I2C_OWNADDRESS1_7BIT : LL_I2C_OWNADDRESS1_10BIT;
 
-    this->handle.Init.DualAddressMode = (config.ownAddress2 != 0x00) ? I2C_DUALADDRESS_ENABLE : I2C_DUALADDRESS_DISABLE;
-    this->handle.Init.OwnAddress1 = config.ownAddress1;
-    this->handle.Init.OwnAddress2 = config.ownAddress2;
+    auto initStatus = LL_I2C_Init(instance, &i2cInit);
+    if(initStatus != SUCCESS)
+        throw I2cException("Error initializing I2C.");
 
-    this->handle.MspInitCallback = nullptr;
+    // LL_I2C_Enable(instance);
 
-    if(HAL_I2C_Init(&this->handle) != HAL_OK)
-    {
-        throw I2cException("There was an error initializing the I2C driver.");
-    }
+    // Dual address
+    LL_I2C_SetOwnAddress2(instance, config.ownAddress2);
+    if(config.ownAddress2 != 0x00)
+        LL_I2C_EnableOwnAddress2(instance);
+    else
+        LL_I2C_DisableOwnAddress2(instance);
 
-    registerCallbacks();
-}
+    // Clock stretching
+    if(config.clockStretching)
+        LL_I2C_EnableClockStretching(instance);
+    else
+        LL_I2C_DisableClockStretching(instance);
 
+    // General call
+    if(config.generalCall)
+        LL_I2C_EnableGeneralCall(instance);
+    else
+        LL_I2C_DisableGeneralCall(instance);
 
-void I2cBus::registerCallbacks(void)
-{
-    if(HAL_I2C_RegisterCallback(&handle, HAL_I2C_MASTER_TX_COMPLETE_CB_ID, transactionCompleteCallback) != HAL_OK)
-    {
-        throw I2cException("There was an error registering the callback.");
-    }
-
-    if(HAL_I2C_RegisterCallback(&handle, HAL_I2C_MASTER_RX_COMPLETE_CB_ID, transactionCompleteCallback) != HAL_OK)
-    {
-        throw I2cException("There was an error registering the callback.");
-    }
-
-    if(HAL_I2C_RegisterCallback(&handle, HAL_I2C_MEM_TX_COMPLETE_CB_ID, transactionCompleteCallback) != HAL_OK)
-    {
-        throw I2cException("There was an error registering the callback.");
-    }
-
-    if(HAL_I2C_RegisterCallback(&handle, HAL_I2C_MEM_RX_COMPLETE_CB_ID, transactionCompleteCallback) != HAL_OK)
-    {
-        throw I2cException("There was an error registering the callback.");
-    }
-
-    if(HAL_I2C_RegisterCallback(&handle, HAL_I2C_ERROR_CB_ID, transactionErrorCallback) != HAL_OK)
-    {
-        throw I2cException("There was an error registering the callback.");
-    }
-
-    if(HAL_I2C_RegisterCallback(&handle, HAL_I2C_ABORT_CB_ID, transactionErrorCallback) != HAL_OK)
-    {
-        throw I2cException("There was an error registering the callback.");
-    }
+    LL_I2C_Enable(instance);
+    LL_I2C_AcknowledgeNextData(instance, LL_I2C_ACK);
 }
 
 void I2cBus::initGpio(void)
@@ -340,7 +293,7 @@ void I2cBus::initNvic(void)
     IRQn_Type eventInterrupt;
     IRQn_Type errorInterrupt;
 
-    switch(bus)
+    switch(this->bus)
     {
         case I2C_BUS_1:
             eventInterrupt = I2C1_EV_IRQn;
@@ -356,8 +309,11 @@ void I2cBus::initNvic(void)
             break;
     }
 
-    HAL_NVIC_SetPriority(eventInterrupt, 1, 1);
-    HAL_NVIC_EnableIRQ(eventInterrupt);
-    HAL_NVIC_SetPriority(errorInterrupt, 1, 1);
-    HAL_NVIC_EnableIRQ(errorInterrupt);
+    LL_I2C_EnableIT_EVT(this->instance);
+    LL_I2C_EnableIT_ERR(this->instance);
+
+    NVIC_SetPriority(eventInterrupt, I2C_EVENT_IRQ_PRIORITY);
+    NVIC_SetPriority(errorInterrupt, I2C_ERROR_IRQ_PRIORITY);
+    NVIC_EnableIRQ(eventInterrupt);
+    NVIC_EnableIRQ(errorInterrupt);
 }
