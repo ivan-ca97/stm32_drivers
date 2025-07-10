@@ -71,7 +71,7 @@ uint8_t* I2cTransaction::getDataPointer(void)
     return data;
 }
 
-uint16_t I2cTransaction::getDataLenthBytes(void)
+uint16_t I2cTransaction::getDataLengthBytes(void)
 {
     return dataBytes;
 }
@@ -79,12 +79,6 @@ uint16_t I2cTransaction::getDataLenthBytes(void)
 uint16_t I2cTransaction::getCurrentIndex(void)
 {
     return bus->getCurrentIndex();
-}
-
-bool I2cTransaction::hasPendingBytes(void)
-{
-    // TODO
-    return true;
 }
 
 uint8_t I2cTransaction::getByte(uint16_t index)

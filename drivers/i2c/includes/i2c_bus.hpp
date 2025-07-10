@@ -59,13 +59,13 @@ typedef enum
     I2C_BUS_SEND_REGISTER,
 
     I2C_BUS_SEND_DATA,
+    I2C_BUS_SEND_LAST_DATA_BYTE,
 
     I2C_BUS_LAST_REGISTER_BYTE,
     I2C_BUS_REPEATED_START,
     I2C_BUS_REPEATED_START_ACK_ADDR,
     I2C_BUS_RECEIVE_DATA,
 
-    I2C_BUS_LAST_DATA_BYTE,
 }
 I2cBusStatus;
 
@@ -127,7 +127,19 @@ class I2cBus
 
         void errorCallback();
 
-        void sendSlaveAddress();
+        bool sendSlaveAddress(bool readBit);
+        void prepareMasterRx(uint8_t remainingBytes);
+        void finishCurrentTransaction();
+
+        void masterStateStartAttemp();
+        void masterStateSendSlaveAddress();
+        void masterStateSendRegister();
+        void masterStateSendData();
+        void masterStateSendLastDataByte();
+        void masterStateSendLastRegisterByte();
+        void masterStateRepeatedStart();
+        void masterStateRepeatedStartAckAddr();
+        void masterStateReceiveData();
 
         void eventMasterCallback();
 
