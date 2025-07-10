@@ -78,11 +78,9 @@ class I2cTransaction
 
         uint8_t* getDataPointer(void);
 
-        uint16_t getDataLenthBytes(void);
+        uint16_t getDataLengthBytes(void);
 
         uint16_t getCurrentIndex(void);
-
-        bool hasPendingBytes(void);
 
         uint8_t getByte(uint16_t index);
 
