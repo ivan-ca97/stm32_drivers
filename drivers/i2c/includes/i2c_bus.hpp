@@ -7,6 +7,7 @@
 #include "i2c_driver_exceptions.hpp"
 #include "i2c_transaction.hpp"
 
+#include "timer.hpp"
 #include "queue.hpp"
 
 #define I2C_BUS_MAX 3
@@ -76,7 +77,7 @@ class I2cBus
 
         static void handleInterrupt(I2cBusSelection bus, I2cInterruptType type);
 
-        Queue<I2cTransaction> *queue;
+        Queue<I2cTransaction>* queue;
 
         I2cTransaction* currentTransaction;
 
@@ -90,6 +91,10 @@ class I2cBus
 
         I2cBusStatus status = I2C_BUS_IDLE;
 
+        Timer* timer;
+
+        uint16_t retryIntervalMs;
+
         uint32_t currentIndex;
 
         /*
@@ -100,6 +105,12 @@ class I2cBus
          *  @throws I2cException: If there's a HAL error.
          */
         void initInstance(const I2cBusConfig& config);
+
+        uint32_t verifyTimer();
+
+        void scheduleTimer();
+
+        static void timerCallback(void* argument);
 
         void registerDriver(I2cBusSelection bus);
 
@@ -119,7 +130,7 @@ class I2cBus
          */
         void areAddressesValid(uint16_t ownAddress1, uint16_t ownAddress2, bool addressing7bit);
 
-        void sendNextTransaction(void);
+        bool sendNextTransaction(void);
 
         void setTransaction(I2cTransaction &transaction);
 
@@ -129,7 +140,7 @@ class I2cBus
 
         bool sendSlaveAddress(bool readBit);
         void prepareMasterRx(uint8_t remainingBytes);
-        void finishCurrentTransaction();
+        void finishCurrentTransaction(bool postCallback);
 
         void masterStateStartAttemp();
         void masterStateSendSlaveAddress();
@@ -164,6 +175,8 @@ class I2cBus
             bool clockStretching = false,
             bool generalCall = false
         );
+
+        bool verifyPendingTransaction();
 
         /*
          *  @brief Checks whether the address is valid, taking into account the addressing mode

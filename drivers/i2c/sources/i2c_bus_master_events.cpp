@@ -39,9 +39,10 @@ void I2cBus::prepareMasterRx(uint8_t remainingBytes)
     }
 }
 
-void I2cBus::finishCurrentTransaction()
+void I2cBus::finishCurrentTransaction(bool postCallback)
 {
-    currentTransaction->postCallback();
+    if(postCallback)
+        currentTransaction->postCallback();
     queue->dequeue();
     status = I2C_BUS_IDLE;
     sendNextTransaction();
@@ -120,7 +121,7 @@ void I2cBus::masterStateSendLastDataByte()
         return;
 
     LL_I2C_GenerateStopCondition(instance);
-    finishCurrentTransaction();
+    finishCurrentTransaction(true);
 }
 
 void I2cBus::masterStateSendLastRegisterByte()
@@ -164,7 +165,7 @@ void I2cBus::masterStateReceiveData()
     uint8_t remainingBytes = currentTransaction->getDataLengthBytes() - currentIndex;
     prepareMasterRx(remainingBytes);
     if(remainingBytes == 0)
-        finishCurrentTransaction();
+        finishCurrentTransaction(true);
 }
 
 
@@ -212,4 +213,28 @@ void I2cBus::eventMasterCallback()
             masterStateReceiveData();
             break;
     }
+}
+
+void I2cBus::errorCallback()
+{
+    if (LL_I2C_IsActiveFlag_AF(instance)) {
+        LL_I2C_ClearFlag_AF(instance);
+    }
+
+    if (LL_I2C_IsActiveFlag_ARLO(instance)) {
+        LL_I2C_ClearFlag_ARLO(instance);
+    }
+
+    if (LL_I2C_IsActiveFlag_BERR(instance)) {
+        LL_I2C_ClearFlag_BERR(instance);
+    }
+
+    if (LL_I2C_IsActiveFlag_OVR(instance)) {
+        LL_I2C_ClearFlag_OVR(instance);
+    }
+
+    currentTransaction->setStatus(TRANSACTION_ERROR);
+    currentTransaction->errorCallback();
+    finishCurrentTransaction(false);
+    sendNextTransaction();
 }

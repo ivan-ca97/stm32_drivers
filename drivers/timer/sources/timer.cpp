@@ -63,9 +63,21 @@ uint32_t Timer::getFrequency()
     return baseClock / (this->timerRegister->PSC + 1);
 }
 
+uint32_t Timer::getPeriodUs()
+{
+    auto baseClock = getBaseClockFrequency();
+    return (this->timerRegister->PSC + 1) / (baseClock / 1000000);
+}
+
 uint32_t Timer::getPrescaler()
 {
     return this->timerRegister->PSC;
+}
+
+void Timer::setCallback(std::function<void(void*)> callback, void* argument)
+{
+    this->callback = callback;
+    this->callbackArguments = argument;
 }
 
 void Timer::setAlarm(uint32_t count, bool oneShot)

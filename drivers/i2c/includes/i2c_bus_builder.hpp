@@ -2,7 +2,7 @@
 
 struct I2cBusConfig
 {
-    Queue<I2cTransaction> *queue;
+    Queue<I2cTransaction>* queue;
     I2cBusSelection bus;
     std::string name;
     uint32_t clockSpeed;
@@ -12,6 +12,8 @@ struct I2cBusConfig
     uint16_t ownAddress2 = 0;
     bool clockStretching = false;
     bool generalCall = false;
+    Timer* timer = nullptr;
+    uint16_t retryIntervalMs;
 };
 
 class I2cBus::Builder
@@ -34,11 +36,15 @@ class I2cBus::Builder
 
         Builder& setOwnAddress2(uint16_t ownAddress2);
 
-        Builder& setDutyCycle16_9(I2cDutyCycle dutyCycle);
+        Builder& setDutyCycle16_9();
 
         Builder& set10BitAddressing();
 
         Builder& enableClockStretching();
 
         Builder& enableSlaveGeneralCall();
+
+        Builder& withTimer(Timer* timer);
+
+        Builder& setRetryIntervalMs(uint16_t retryIntervalMs);
 };

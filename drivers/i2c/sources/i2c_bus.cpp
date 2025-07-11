@@ -5,6 +5,7 @@
 
 #include "stm32f4xx_ll_i2c.h"
 
+#define EXPECTED_TIMER_TOLERANCE_PERIOD_US 100
 #define I2C_FAST_MODE_CUTOFF_FREQUENCY 100000
 #define I2C_EVENT_IRQ_PRIORITY 1
 #define I2C_ERROR_IRQ_PRIORITY 1
@@ -17,16 +18,44 @@ I2C_TypeDef* I2cBus::getInstance(void)
     return instance;
 }
 
-void I2cBus::sendNextTransaction(void)
+void I2cBus::timerCallback(void* argument)
+{
+    I2cBus* bus = static_cast<I2cBus*>(argument);
+
+    bool sent = bus->sendNextTransaction();
+    if(!sent)
+        bus->scheduleTimer();
+}
+
+void I2cBus::scheduleTimer()
+{
+    auto ticks = verifyTimer();
+    timer->setCallback(timerCallback, this);
+    timer->setAlarm(ticks, true);
+    timer->start();
+}
+
+bool I2cBus::verifyPendingTransaction()
+{
+    return sendNextTransaction();
+}
+
+bool I2cBus::sendNextTransaction(void)
 {
     currentTransaction = queue->peek();
     if(!currentTransaction)
+        return false;
+
+    if(LL_I2C_IsActiveFlag_BUSY(instance))
     {
-        return;
+        if(timer)
+            scheduleTimer();
+        return false;
     }
 
     LL_I2C_GenerateStartCondition(instance);
     this->status = I2C_BUS_START_ATTEMPT;
+    return true;
 }
 
 void I2cBus::setTransaction(I2cTransaction &transaction)
@@ -42,27 +71,6 @@ void I2cBus::setTransaction(I2cTransaction &transaction)
 void I2cBus::eventCallback()
 {
     this->eventMasterCallback();
-}
-
-void I2cBus::errorCallback()
-{
-    if (LL_I2C_IsActiveFlag_AF(I2C1)) {
-        LL_I2C_ClearFlag_AF(I2C1);
-    }
-
-    if (LL_I2C_IsActiveFlag_ARLO(I2C1)) {
-        LL_I2C_ClearFlag_ARLO(I2C1);
-    }
-
-    if (LL_I2C_IsActiveFlag_BERR(I2C1)) {
-        LL_I2C_ClearFlag_BERR(I2C1);
-    }
-
-    if (LL_I2C_IsActiveFlag_OVR(I2C1)) {
-        LL_I2C_ClearFlag_OVR(I2C1);
-    }
-
-    this->status = I2C_BUS_IDLE;
 }
 
 void I2cBus::handleInterrupt(I2cBusSelection bus, I2cInterruptType type)
@@ -83,9 +91,31 @@ void I2cBus::handleInterrupt(I2cBusSelection bus, I2cInterruptType type)
     }
 }
 
-I2cBus::I2cBus(const I2cBusConfig& config)
-    : queue(config.queue), bus(config.bus), name(config.name)
+uint32_t I2cBus::verifyTimer()
 {
+    uint32_t timerPeriodUs = timer->getPeriodUs();
+
+    uint32_t retryIntervalUs = retryIntervalMs * 1000;
+    uint32_t expectedTicks = retryIntervalUs / timerPeriodUs;
+    uint32_t actualRetryTimeUs  = timerPeriodUs * expectedTicks;
+
+    if (expectedTicks == 0)
+        throw I2cException("Retry interval too short for timer resolution");
+
+    if (abs((int32_t)(actualRetryTimeUs  - retryIntervalUs)) > EXPECTED_TIMER_TOLERANCE_PERIOD_US)
+        throw I2cException("Misconfigured timer");
+
+    return expectedTicks;
+}
+
+I2cBus::I2cBus(const I2cBusConfig& config)
+    : queue(config.queue), bus(config.bus), name(config.name), timer(config.timer), retryIntervalMs(config.retryIntervalMs)
+{
+    if(timer)
+    {
+        verifyTimer();
+        timer->setCallback(timerCallback, this);
+    }
     registerDriver(this->bus);
 
     if(config.clockSpeed <= I2C_FAST_MODE_CUTOFF_FREQUENCY)
