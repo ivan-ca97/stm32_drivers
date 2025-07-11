@@ -32,6 +32,8 @@ void TIM4_IRQHandler(void);
 #endif
 
 #include <array>
+#include <functional>
+
 #include "stm32f401xc.h"
 
 typedef enum
@@ -56,7 +58,7 @@ struct TimerConfig
     bool autoStart = false;
     bool enableInterrupt = false;
     bool oneShotAlarm = false;
-    void (*callback)(void*) = nullptr;
+    std::function<void(void*)> callback = nullptr;
     void* callbackArguments = nullptr;
     TimerSelection timer = TIMER_MAX;
 };
@@ -75,7 +77,7 @@ class Timer
         void registerTimer(TimerSelection timer);
 
         void* callbackArguments;
-        void (*callback)(void*);
+        std::function<void(void*)> callback;
 
         void initializePrescaler(uint32_t prescaler, uint32_t frequency);
 
@@ -93,6 +95,7 @@ class Timer
 
         void start();
         void pause();
+        void setCallback(std::function<void(void*)> callback, void* argument);
         void setAlarm(uint32_t count, bool oneShot = false);
         void resetAlarm();
         bool isRunning();
@@ -104,6 +107,7 @@ class Timer
 
         uint32_t getPrescaler();
         uint32_t getFrequency();
+        uint32_t getPeriodUs();
 
         void enableInterrupt();
         void disableInterrupt();

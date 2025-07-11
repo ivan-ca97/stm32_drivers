@@ -14,6 +14,6 @@ add_subdirectory(lib/custom_exception)
 target_link_libraries(${CMAKE_PROJECT_NAME}
     custom_exception
     queue
-    i2c_driver
     timer_driver
+    i2c_driver
 )

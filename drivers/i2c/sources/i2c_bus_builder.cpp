@@ -36,7 +36,7 @@ I2cBus::Builder& I2cBus::Builder::setOwnAddress2(uint16_t ownAddress2)
     return *this;
 }
 
-I2cBus::Builder& I2cBus::Builder::setDutyCycle16_9(I2cDutyCycle dutyCycle)
+I2cBus::Builder& I2cBus::Builder::setDutyCycle16_9()
 {
     config.dutyCycle = I2C_DUTY_CYCLE_16_9;
     return *this;
@@ -57,6 +57,18 @@ I2cBus::Builder& I2cBus::Builder::enableClockStretching()
 I2cBus::Builder& I2cBus::Builder::enableSlaveGeneralCall()
 {
     config.generalCall = true;
+    return *this;
+}
+
+I2cBus::Builder& I2cBus::Builder::withTimer(Timer* timer)
+{
+    config.timer = timer;
+    return *this;
+}
+
+I2cBus::Builder& I2cBus::Builder::setRetryIntervalMs(uint16_t retryIntervalMs)
+{
+    config.retryIntervalMs = retryIntervalMs;
     return *this;
 }
 
