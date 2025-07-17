@@ -168,6 +168,35 @@ void I2cBus::masterStateReceiveData()
         finishCurrentTransaction(true);
 }
 
+void I2cBus::eventSlaveCallback()
+{
+    if(LL_I2C_IsActiveFlag_ADDR(instance))
+    {
+        LL_I2C_ReadReg(instance, SR1);
+        uint32_t sr2 = LL_I2C_ReadReg(instance, SR2);
+        if(sr2 & I2C_SR2_TRA)
+            status = I2C_BUS_SLAVE_TRANSMIT;
+        else
+            status = I2C_BUS_SLAVE_RECEIVE;
+
+        LL_I2C_EnableIT_BUF(instance);
+        slave->onAddressMatch();
+    }
+
+    if(status == I2C_BUS_SLAVE_TRANSMIT && LL_I2C_IsActiveFlag_TXE(instance))
+        LL_I2C_TransmitData8(instance, slave->onReadByte());
+
+    while(status == I2C_BUS_SLAVE_RECEIVE && LL_I2C_IsActiveFlag_RXNE(instance))
+        slave->onWriteByte(LL_I2C_ReceiveData8(instance));
+
+    if(LL_I2C_IsActiveFlag_STOP(instance))
+    {
+        LL_I2C_DisableIT_BUF(instance);
+        LL_I2C_ClearFlag_STOP(instance);
+        slave->onStop();
+        status = I2C_BUS_IDLE;
+    }
+}
 
 void I2cBus::eventMasterCallback()
 {
@@ -212,29 +241,35 @@ void I2cBus::eventMasterCallback()
         case I2C_BUS_RECEIVE_DATA:
             masterStateReceiveData();
             break;
+
+        default:
+            break;
     }
 }
 
 void I2cBus::errorCallback()
 {
-    if (LL_I2C_IsActiveFlag_AF(instance)) {
+    if (LL_I2C_IsActiveFlag_AF(instance))
         LL_I2C_ClearFlag_AF(instance);
-    }
 
-    if (LL_I2C_IsActiveFlag_ARLO(instance)) {
+    if (LL_I2C_IsActiveFlag_ARLO(instance))
         LL_I2C_ClearFlag_ARLO(instance);
-    }
 
-    if (LL_I2C_IsActiveFlag_BERR(instance)) {
+    if (LL_I2C_IsActiveFlag_BERR(instance))
         LL_I2C_ClearFlag_BERR(instance);
-    }
 
-    if (LL_I2C_IsActiveFlag_OVR(instance)) {
+    if (LL_I2C_IsActiveFlag_OVR(instance))
+    {
+        LL_I2C_ReceiveData8(instance);
         LL_I2C_ClearFlag_OVR(instance);
     }
+
+    if(!currentTransaction)
+        return;
 
     currentTransaction->setStatus(TRANSACTION_ERROR);
     currentTransaction->errorCallback();
     finishCurrentTransaction(false);
     sendNextTransaction();
+
 }

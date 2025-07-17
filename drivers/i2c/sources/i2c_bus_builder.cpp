@@ -48,9 +48,9 @@ I2cBus::Builder& I2cBus::Builder::set10BitAddressing()
     return *this;
 }
 
-I2cBus::Builder& I2cBus::Builder::enableClockStretching()
+I2cBus::Builder& I2cBus::Builder::disableClockStretching()
 {
-    config.clockStretching = true;
+    config.clockStretching = false;
     return *this;
 }
 
@@ -63,6 +63,12 @@ I2cBus::Builder& I2cBus::Builder::enableSlaveGeneralCall()
 I2cBus::Builder& I2cBus::Builder::withTimer(Timer* timer)
 {
     config.timer = timer;
+    return *this;
+}
+
+I2cBus::Builder& I2cBus::Builder::withSlave(I2cSlave* slave)
+{
+    config.slave = slave;
     return *this;
 }
 

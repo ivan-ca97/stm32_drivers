@@ -6,6 +6,7 @@
 
 #include "i2c_driver_exceptions.hpp"
 #include "i2c_transaction.hpp"
+#include "i2c_slave.hpp"
 
 #include "timer.hpp"
 #include "queue.hpp"
@@ -55,6 +56,10 @@ struct I2cBusConfig;
 typedef enum
 {
     I2C_BUS_IDLE,
+
+    I2C_BUS_SLAVE_TRANSMIT,
+    I2C_BUS_SLAVE_RECEIVE,
+
     I2C_BUS_START_ATTEMPT,
     I2C_BUS_SEND_SLAVE_ADDRESS,
     I2C_BUS_SEND_REGISTER,
@@ -66,7 +71,6 @@ typedef enum
     I2C_BUS_REPEATED_START,
     I2C_BUS_REPEATED_START_ACK_ADDR,
     I2C_BUS_RECEIVE_DATA,
-
 }
 I2cBusStatus;
 
@@ -75,11 +79,13 @@ class I2cBus
     protected:
         static std::array<I2cBus*, I2C_BUS_MAX> drivers;
 
+        I2cSlave* slave = nullptr;
+
         static void handleInterrupt(I2cBusSelection bus, I2cInterruptType type);
 
         Queue<I2cTransaction>* queue;
 
-        I2cTransaction* currentTransaction;
+        I2cTransaction* currentTransaction = nullptr;
 
         I2C_TypeDef* instance = nullptr;
 
@@ -152,6 +158,7 @@ class I2cBus
         void masterStateRepeatedStartAckAddr();
         void masterStateReceiveData();
 
+        void eventSlaveCallback();
         void eventMasterCallback();
 
     public:
