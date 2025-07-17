@@ -70,7 +70,26 @@ void I2cBus::setTransaction(I2cTransaction &transaction)
 
 void I2cBus::eventCallback()
 {
-    this->eventMasterCallback();
+    switch(status)
+    {
+        case I2C_BUS_IDLE:
+        case I2C_BUS_SLAVE_TRANSMIT:
+        case I2C_BUS_SLAVE_RECEIVE:
+            eventSlaveCallback();
+            break;
+
+        case I2C_BUS_START_ATTEMPT:
+        case I2C_BUS_SEND_SLAVE_ADDRESS:
+        case I2C_BUS_SEND_REGISTER:
+        case I2C_BUS_SEND_DATA:
+        case I2C_BUS_SEND_LAST_DATA_BYTE:
+        case I2C_BUS_LAST_REGISTER_BYTE:
+        case I2C_BUS_REPEATED_START:
+        case I2C_BUS_REPEATED_START_ACK_ADDR:
+        case I2C_BUS_RECEIVE_DATA:
+            eventMasterCallback();
+            break;
+    }
 }
 
 void I2cBus::handleInterrupt(I2cBusSelection bus, I2cInterruptType type)
@@ -109,7 +128,7 @@ uint32_t I2cBus::verifyTimer()
 }
 
 I2cBus::I2cBus(const I2cBusConfig& config)
-    : queue(config.queue), bus(config.bus), name(config.name), timer(config.timer), retryIntervalMs(config.retryIntervalMs)
+    : queue(config.queue), bus(config.bus), name(config.name), timer(config.timer), slave(config.slave), retryIntervalMs(config.retryIntervalMs)
 {
     if(timer)
     {
@@ -118,10 +137,7 @@ I2cBus::I2cBus(const I2cBusConfig& config)
     }
     registerDriver(this->bus);
 
-    if(config.clockSpeed <= I2C_FAST_MODE_CUTOFF_FREQUENCY)
-    {
-        this->fastMode = false;
-    }
+    this->fastMode = config.clockSpeed >= I2C_FAST_MODE_CUTOFF_FREQUENCY;
 
     bool masterOnly = (config.ownAddress1 == 0x0) && (config.ownAddress2 == 0x0);
     if(!masterOnly)
@@ -234,7 +250,7 @@ void I2cBus::initInstance(const I2cBusConfig& config)
     i2cInit.PeripheralMode  = LL_I2C_MODE_I2C;
     i2cInit.ClockSpeed      = config.clockSpeed;
     i2cInit.DutyCycle       = dutyCycle;
-    i2cInit.OwnAddress1     = config.ownAddress1;
+    i2cInit.OwnAddress1     = config.ownAddress1 << 1;
     i2cInit.TypeAcknowledge = LL_I2C_ACK;
     i2cInit.OwnAddrSize     = config.addressing7Bit ? LL_I2C_OWNADDRESS1_7BIT : LL_I2C_OWNADDRESS1_10BIT;
 

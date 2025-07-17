@@ -10,9 +10,10 @@ struct I2cBusConfig
     I2cDutyCycle dutyCycle = I2C_DUTY_CYCLE_2;
     uint16_t ownAddress1 = 0;
     uint16_t ownAddress2 = 0;
-    bool clockStretching = false;
+    bool clockStretching = true;
     bool generalCall = false;
     Timer* timer = nullptr;
+    I2cSlave* slave = nullptr;
     uint16_t retryIntervalMs;
 };
 
@@ -40,11 +41,13 @@ class I2cBus::Builder
 
         Builder& set10BitAddressing();
 
-        Builder& enableClockStretching();
+        Builder& disableClockStretching();
 
         Builder& enableSlaveGeneralCall();
 
         Builder& withTimer(Timer* timer);
+
+        Builder& withSlave(I2cSlave* slave);
 
         Builder& setRetryIntervalMs(uint16_t retryIntervalMs);
 };
