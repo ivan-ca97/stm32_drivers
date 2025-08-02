@@ -50,48 +50,15 @@ typedef enum
 }
 TimerSelection;
 
-struct TimerConfig
-{
-    uint32_t count = 0;
-    uint32_t frequency = 0;
-    uint32_t prescaler = 0;
-    bool autoStart = false;
-    bool enableInterrupt = false;
-    bool oneShotAlarm = false;
-    std::function<void(void*)> callback = nullptr;
-    void* callbackArguments = nullptr;
-    TimerSelection timer = TIMER_MAX;
-};
-
 class Timer
 {
-    protected:
-        TimerSelection timer;
-        TIM_TypeDef* timerRegister;
-        uint32_t resetCount = 0;
-        bool alarmOn = false;
-        bool oneShotAlarm = false;
-
-        static std::array<Timer*, TIMER_MAX> drivers;
-
-        void registerTimer(TimerSelection timer);
-
-        void* callbackArguments;
-        std::function<void(void*)> callback;
-
-        void initializePrescaler(uint32_t prescaler, uint32_t frequency);
-
-        TIM_TypeDef* getTimerRegisters(TimerSelection timer);
-        void enableClock(TimerSelection timer);
-
-        void handleInterrupt();
-
-        void forceUpdate();
-
     public:
         class Builder;
 
-        explicit Timer(const TimerConfig& config);
+        struct Config;
+
+        Timer() = default;
+        Timer(const Config& config);
 
         void start();
         void pause();
@@ -118,43 +85,37 @@ class Timer
 
         static bool isTimerUsed(TimerSelection timer);
 
-        // Interrupt handlers declared as friends
-        friend void TIM1_UP_TIM10_IRQHandler(void);
-        friend void TIM1_BRK_TIM9_IRQHandler(void);
-        friend void TIM1_TRG_COM_TIM11_IRQHandler(void);
-        friend void TIM1_CC_IRQHandler(void);
-        friend void TIM2_IRQHandler(void);
-        friend void TIM3_IRQHandler(void);
-        friend void TIM4_IRQHandler(void);
-};
+    protected:
+        TimerSelection timer;
+        TIM_TypeDef* timerRegister;
+        uint32_t resetCount = 0;
+        bool alarmOn = false;
+        bool oneShotAlarm = false;
 
-class Timer::Builder
-{
-    private:
-        TimerConfig config;
+        static std::array<Timer*, TIMER_MAX> drivers;
 
-    public:
-        Builder& setCount(uint32_t count);
+        void init(const Config& config);
 
-        Builder& setPrescaler(uint32_t prescaler);
+        void registerTimer(TimerSelection timer);
 
-        Builder& setFrequency(uint32_t frequency);
+        void* callbackArguments;
+        std::function<void(void*)> callback;
 
-        Builder& setCallback(void (*callback)(void*));
+        void initializePrescaler(uint32_t prescaler, uint32_t frequency);
 
-        Builder& setCallbackArguments(void* callbackArguments);
+        TIM_TypeDef* getTimerRegisters(TimerSelection timer);
+        void enableClock(TimerSelection timer);
 
-        Builder& timerSelection(TimerSelection timer);
+        void handleInterrupt();
 
-        Builder& autoStart();
+        void forceUpdate();
 
-        Builder& enableInterrupt();
-
-        Builder& setAlarm(uint32_t count);
-
-        Builder& oneShot();
-
-        Builder& periodic();
-
-        Timer build();
+    // Interrupt handlers declared as friends
+    friend void TIM1_UP_TIM10_IRQHandler(void);
+    friend void TIM1_BRK_TIM9_IRQHandler(void);
+    friend void TIM1_TRG_COM_TIM11_IRQHandler(void);
+    friend void TIM1_CC_IRQHandler(void);
+    friend void TIM2_IRQHandler(void);
+    friend void TIM3_IRQHandler(void);
+    friend void TIM4_IRQHandler(void);
 };

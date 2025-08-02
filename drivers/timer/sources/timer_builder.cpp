@@ -1,4 +1,4 @@
-#include "timer.hpp"
+#include "timer_builder.hpp"
 
 
 Timer::Builder& Timer::Builder::setCount(uint32_t count)
@@ -68,7 +68,12 @@ Timer::Builder& Timer::Builder::timerSelection(TimerSelection timer)
     return *this;
 }
 
-Timer Timer::Builder::build()
+void Timer::Builder::buildIn(Timer& target)
 {
-    return Timer(this->config);
+    return target.init(config);
+}
+
+Timer::Config Timer::Builder::buildConfig()
+{
+    return config;
 }

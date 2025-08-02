@@ -78,7 +78,12 @@ I2cBus::Builder& I2cBus::Builder::setRetryIntervalMs(uint16_t retryIntervalMs)
     return *this;
 }
 
-I2cBus I2cBus::Builder::build()
+void I2cBus::Builder::buildIn(I2cBus* target)
 {
-    return I2cBus(config);
+    return target->init(config);
+}
+
+I2cBus::Config I2cBus::Builder::buildConfig()
+{
+    return config;
 }

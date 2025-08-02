@@ -1,92 +1,34 @@
 #pragma once
 
 #include <stdint.h>
+#include <functional>
 
 class I2cDevice;
 class I2cBus;
 
-typedef void (*Callback)(void*);
-
-typedef enum
-{
-    TRANSACTION_RX,
-    TRANSACTION_TX
-}
-TransactionDirection;
-
-typedef enum
-{
-    REGISTER_NULL,
-    REGISTER_8_BITS,
-    REGISTER_16_BITS,
-    REGISTER_24_BITS,
-    REGISTER_32_BITS
-}
-RegisterLength;
-
-typedef enum
-{
-    TRANSACTION_PENDING,
-    TRANSACTION_IN_PROGRESS,
-    TRANSACTION_SENT,
-    TRANSACTION_ERROR,
-}
-I2cTransactionStatus;
-
 class I2cTransaction
 {
-    protected:
-        TransactionDirection direction;
-        uint16_t address;
-        uint8_t* data;
-        uint16_t dataBytes;
-        I2cDevice* device;
-        I2cBus* bus;
-        uint32_t deviceRegister;
-        RegisterLength deviceRegisterBytes;
-        I2cTransactionStatus status = TRANSACTION_PENDING;
-
-        void* preCallbackParameters = nullptr;
-        void* postCallbackParameters = nullptr;
-        void* errorCallbackParameters = nullptr;
-        Callback preCallbackFunction = nullptr;
-        Callback postCallbackFunction = nullptr;
-        Callback errorCallbackFunction = nullptr;
-
     public:
-        I2cTransaction();
+        class Builder;
 
-        static I2cTransaction I2cTxTransaction(I2cDevice *device, uint8_t* data, uint16_t dataBytes, uint32_t deviceRegister = 0, RegisterLength deviceRegisterBytes = REGISTER_NULL);
-
-        static I2cTransaction I2cRxTransaction(I2cDevice *device, uint8_t* data, uint16_t dataBytes, uint32_t deviceRegister = 0, RegisterLength deviceRegisterBytes = REGISTER_NULL);
-
-        I2cTransaction(TransactionDirection direction, uint8_t* data, uint16_t dataBytes, I2cDevice *device, uint16_t address, uint32_t deviceRegister = 0, RegisterLength deviceRegisterBytes = REGISTER_NULL);
-
-        I2cTransaction(TransactionDirection direction, uint8_t* data, uint16_t dataBytes, uint16_t address, uint32_t deviceRegister = 0, RegisterLength deviceRegisterBytes = REGISTER_NULL);
-
-        I2cTransaction(TransactionDirection direction, uint8_t* data, uint16_t dataBytes, I2cDevice *device, uint32_t deviceRegister = 0, RegisterLength deviceRegisterBytes = REGISTER_NULL);
-
-        void setPreCallback(Callback callback, void* parameters);
-
-        void setPostCallback(Callback callback, void* parameters);
-
-        void setErrorCallback(Callback callback, void* parameters);
-
-        void attachBus(I2cBus* bus);
+        typedef enum
+        {
+            RX,
+            TX
+        }
+        Direction;
 
         uint16_t getAddress(void);
-
-        uint8_t* getDataPointer(void);
-
-        uint16_t getDataLengthBytes(void);
-
-        uint16_t getCurrentIndex(void);
 
         uint8_t getByte(uint16_t index);
 
         void setByte(uint8_t byte, uint16_t index);
 
-        uint16_t getRegister(void);
+        uint8_t* getDataPointer(void);
+
+        uint16_t getDataLengthBytes(void);
+
+        uint32_t getRegister(void);
 
         bool hasRegister(void);
 
@@ -94,32 +36,52 @@ class I2cTransaction
 
         uint8_t getRegisterLengthBytes(void);
 
-        TransactionDirection getDirection(void);
+        bool isTx(void);
 
-        bool isRead(void);
+        bool isRx(void);
 
-        bool isWrite(void);
+        void preCallback();
 
-        I2cTransactionStatus getStatus(void);
+        void postCallback();
 
-        void setStatus(I2cTransactionStatus newStatus);
+        void errorCallback();
 
-        bool isDone(void);
+    protected:
+        Direction direction;
+        I2cDevice* device;
 
-        /*
-         *  @brief Calls the pre-transaction callback before the transaction is set, with the configured parameters.
-         */
-        void preCallback(void);
+        uint8_t* data;
+        uint16_t dataBytes;
+        uint32_t deviceRegister;
+        uint8_t deviceRegisterBytes;
 
-        /*
-         *  @brief Calls the post-transaction callback after the transaction is finished, with the configured parameters.
-         */
-        void postCallback(void);
+        void* preCallbackParameters = nullptr;
+        void* postCallbackParameters = nullptr;
+        void* errorCallbackParameters = nullptr;
+        std::function<void(void*)> preCallbackFunction = nullptr;
+        std::function<void(void*)> postCallbackFunction = nullptr;
+        std::function<void(void*)> errorCallbackFunction = nullptr;
 
-        /*
-         *  @brief Calls the transaction error callback after the transaction fails, with the configured parameters.
-         */
-        void errorCallback(void);
+    friend class I2cDevice;
+};
 
-        void send(void);
+class I2cTransaction::Builder
+{
+    public:
+        Builder& setDirection(Direction direction);
+
+        Builder& withData(uint8_t* data, uint16_t sizeBytes);
+
+        Builder& withRegister(uint32_t deviceRegister, uint8_t length = 1);
+
+        Builder& withPreCallback(std::function<void(void*)> function, void* parameters = nullptr);
+
+        Builder& withPostCallback(std::function<void(void*)> function, void* parameters = nullptr);
+
+        Builder& withErrorCallback(std::function<void(void*)> function, void* parameters = nullptr);
+
+        I2cTransaction build();
+
+    protected:
+        I2cTransaction transaction;
 };

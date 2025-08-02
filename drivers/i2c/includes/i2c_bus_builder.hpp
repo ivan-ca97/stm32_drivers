@@ -1,8 +1,9 @@
+#pragma once
 #include "i2c_bus.hpp"
 
-struct I2cBusConfig
+struct I2cBus::Config
 {
-    Queue<I2cTransaction>* queue;
+    Queue<I2cTransaction>* queue = nullptr;
     I2cBusSelection bus;
     std::string name;
     uint32_t clockSpeed;
@@ -17,13 +18,16 @@ struct I2cBusConfig
     uint16_t retryIntervalMs;
 };
 
+
 class I2cBus::Builder
 {
     private:
-        I2cBusConfig config;
+        Config config;
 
     public:
-        I2cBus build();
+        void buildIn(I2cBus* target);
+
+        Config buildConfig();
 
         Builder& withQueue(Queue<I2cTransaction> *queue);
 
