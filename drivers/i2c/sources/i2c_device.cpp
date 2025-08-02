@@ -32,7 +32,9 @@ void I2cDevice::setTransaction(I2cTransaction &transaction)
     bus->setTransaction(transaction);
 }
 
-void I2cDevice::operator<<(I2cTransaction& transaction)
+I2cDevice& I2cDevice::operator<<(I2cTransaction& transaction)
 {
+    transaction.device = this;
     bus->setTransaction(transaction);
+    return *this;
 }

@@ -1,7 +1,7 @@
 #include "timer.hpp"
+#include "timer_builder.hpp"
 
 #include "stm32f4xx.h"
-// #include "stm32f401xc.h"
 
 // Initialize with empty drivers array.
 std::array<Timer*, TIMER_MAX> Timer::drivers = {};
@@ -17,9 +17,17 @@ void Timer::initializePrescaler(uint32_t prescaler, uint32_t frequency)
     this->forceUpdate();
 }
 
-Timer::Timer(const TimerConfig& config)
-    : timer(config.timer), timerRegister(this->getTimerRegisters(config.timer)), callback(config.callback)
+Timer::Timer(const Config& config)
 {
+    init(config);
+}
+
+void Timer::init(const Config& config)
+{
+    timer = config.timer;
+    timerRegister = this->getTimerRegisters(config.timer);
+    callback = config.callback;
+
     this->registerTimer(config.timer);
 
     this->enableClock(config.timer);

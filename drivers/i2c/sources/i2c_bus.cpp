@@ -127,9 +127,15 @@ uint32_t I2cBus::verifyTimer()
     return expectedTicks;
 }
 
-I2cBus::I2cBus(const I2cBusConfig& config)
-    : queue(config.queue), bus(config.bus), name(config.name), timer(config.timer), slave(config.slave), retryIntervalMs(config.retryIntervalMs)
+void I2cBus::init(const Config& config)
 {
+    queue = config.queue;
+    bus = config.bus;
+    name = config.name;
+    timer = config.timer;
+    slave = config.slave;
+    retryIntervalMs = config.retryIntervalMs;
+
     if(timer)
     {
         verifyTimer();
@@ -147,6 +153,11 @@ I2cBus::I2cBus(const I2cBusConfig& config)
 
     initGpio();
     initNvic();
+}
+
+I2cBus::I2cBus(const Config& config)
+{
+    init(config);
 }
 
 void I2cBus::areAddressesValid(uint16_t ownAddress1, uint16_t ownAddress2, bool addressing7bit)
@@ -219,7 +230,7 @@ void I2cBus::registerDriver(I2cBusSelection bus)
     drivers[i] = this;
 }
 
-void I2cBus::initInstance(const I2cBusConfig& config)
+void I2cBus::initInstance(const Config& config)
 {
     switch (this->bus)
     {

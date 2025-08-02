@@ -20,5 +20,5 @@ class I2cDevice
 
         void setTransaction(I2cTransaction &transaction);
 
-        void operator<<(I2cTransaction& transaction);
+        I2cDevice& operator<<(I2cTransaction& transaction);
 };

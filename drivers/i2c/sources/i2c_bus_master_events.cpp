@@ -50,7 +50,7 @@ void I2cBus::finishCurrentTransaction(bool postCallback)
 
 void I2cBus::masterStateStartAttemp()
 {
-    bool readBit = currentTransaction->isRead() && !currentTransaction->hasRegister();
+    bool readBit = currentTransaction->isRx() && !currentTransaction->hasRegister();
     bool sentAddress = sendSlaveAddress(readBit);
     if(sentAddress)
         status = I2C_BUS_SEND_SLAVE_ADDRESS;
@@ -64,7 +64,7 @@ void I2cBus::masterStateSendSlaveAddress()
 
     if(currentTransaction->hasRegister())
         status = I2C_BUS_SEND_REGISTER;
-    else if(currentTransaction->isRead())
+    else if(currentTransaction->isRx())
         status = I2C_BUS_SEND_DATA;
     else
     {
@@ -88,14 +88,14 @@ void I2cBus::masterStateSendRegister()
     if(currentIndex < currentTransaction->getRegisterLengthBytes())
         return;
 
-    if(currentTransaction->isRead())
+    if(currentTransaction->isRx())
     {
         LL_I2C_DisableIT_BUF(instance);
         LL_I2C_GenerateStartCondition(instance);
         status = I2C_BUS_LAST_REGISTER_BYTE;
     }
 
-    if(currentTransaction->isWrite())
+    if(currentTransaction->isTx())
         status = I2C_BUS_SEND_DATA;
 
     currentIndex = 0;
@@ -135,7 +135,7 @@ void I2cBus::masterStateSendLastRegisterByte()
 
 void I2cBus::masterStateRepeatedStart()
 {
-    bool readBit = currentTransaction->isRead();
+    bool readBit = currentTransaction->isRx();
     bool sentAddress = sendSlaveAddress(readBit);
     if(sentAddress)
         this->status = I2C_BUS_REPEATED_START_ACK_ADDR;
@@ -267,7 +267,6 @@ void I2cBus::errorCallback()
     if(!currentTransaction)
         return;
 
-    currentTransaction->setStatus(TRANSACTION_ERROR);
     currentTransaction->errorCallback();
     finishCurrentTransaction(false);
     sendNextTransaction();

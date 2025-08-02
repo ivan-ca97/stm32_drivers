@@ -1,84 +1,28 @@
 #include "i2c_transaction.hpp"
 #include "i2c_device.hpp"
+#include <stdexcept>
 
-
-
-I2cTransaction::I2cTransaction()
-    : data(nullptr), dataBytes(0), device(nullptr)
+void I2cTransaction::preCallback()
 {
-
+    if(preCallbackFunction)
+        preCallbackFunction(preCallbackParameters);
 }
 
-I2cTransaction I2cTransaction::I2cTxTransaction(I2cDevice *device, uint8_t* data, uint16_t dataBytes, uint32_t deviceRegister, RegisterLength deviceRegisterBytes)
+void I2cTransaction::postCallback()
 {
-    return I2cTransaction(TRANSACTION_TX, data, dataBytes, device, deviceRegister, deviceRegisterBytes);
+    if(postCallbackFunction)
+        postCallbackFunction(postCallbackParameters);
 }
 
-I2cTransaction I2cTransaction::I2cRxTransaction(I2cDevice *device, uint8_t* data, uint16_t dataBytes, uint32_t deviceRegister, RegisterLength deviceRegisterBytes)
+void I2cTransaction::errorCallback()
 {
-    return I2cTransaction(TRANSACTION_RX, data, dataBytes, device, deviceRegister, deviceRegisterBytes);
-}
-
-I2cTransaction::I2cTransaction(TransactionDirection direction, uint8_t* data, uint16_t dataBytes, I2cDevice *device, uint16_t address, uint32_t deviceRegister, RegisterLength deviceRegisterBytes)
-    : direction(direction), address(address), data(data), dataBytes(dataBytes), device(device), deviceRegister(deviceRegister), deviceRegisterBytes(deviceRegisterBytes)
-{
-    if(deviceRegisterBytes == REGISTER_NULL && deviceRegister != 0)
-        throw I2cException("Configured register but not register length");
-}
-
-I2cTransaction::I2cTransaction(TransactionDirection direction, uint8_t* data, uint16_t dataBytes, uint16_t address, uint32_t deviceRegister, RegisterLength deviceRegisterBytes)
-    : I2cTransaction(direction, data, dataBytes, nullptr, address, deviceRegister, deviceRegisterBytes)
-{
-
-}
-
-I2cTransaction::I2cTransaction(TransactionDirection direction, uint8_t* data, uint16_t dataBytes, I2cDevice *device, uint32_t deviceRegister, RegisterLength deviceRegisterBytes)
-    : I2cTransaction(direction, data, dataBytes, device, device->getAddress(), deviceRegister, deviceRegisterBytes)
-{
-
-}
-
-void I2cTransaction::setPreCallback(Callback callback, void* parameters)
-{
-    preCallbackFunction = callback;
-    preCallbackParameters = parameters;
-}
-
-void I2cTransaction::setPostCallback(Callback callback, void* parameters)
-{
-    postCallbackFunction = callback;
-    postCallbackParameters = parameters;
-}
-
-void I2cTransaction::setErrorCallback(Callback callback, void* parameters)
-{
-    errorCallbackFunction = callback;
-    errorCallbackParameters = parameters;
-}
-
-void I2cTransaction::attachBus(I2cBus* bus)
-{
-    bus = bus;
+    if(errorCallbackFunction)
+        errorCallbackFunction(errorCallbackParameters);
 }
 
 uint16_t I2cTransaction::getAddress(void)
 {
-    return address;
-}
-
-uint8_t* I2cTransaction::getDataPointer(void)
-{
-    return data;
-}
-
-uint16_t I2cTransaction::getDataLengthBytes(void)
-{
-    return dataBytes;
-}
-
-uint16_t I2cTransaction::getCurrentIndex(void)
-{
-    return bus->getCurrentIndex();
+    return device->getAddress();
 }
 
 uint8_t I2cTransaction::getByte(uint16_t index)
@@ -95,14 +39,24 @@ void I2cTransaction::setByte(uint8_t byte, uint16_t index)
     data[index] = byte;
 }
 
-uint16_t I2cTransaction::getRegister(void)
+uint8_t* I2cTransaction::getDataPointer(void)
+{
+    return data;
+}
+
+uint16_t I2cTransaction::getDataLengthBytes(void)
+{
+    return dataBytes;
+}
+
+uint32_t I2cTransaction::getRegister(void)
 {
     return deviceRegister;
 }
 
 bool I2cTransaction::hasRegister(void)
 {
-    return deviceRegisterBytes != REGISTER_NULL;
+    return deviceRegisterBytes > 0;
 }
 
 uint8_t I2cTransaction::getRegisterByte(uint8_t index)
@@ -117,75 +71,61 @@ uint8_t I2cTransaction::getRegisterByte(uint8_t index)
 
 uint8_t I2cTransaction::getRegisterLengthBytes(void)
 {
-    switch(deviceRegisterBytes)
-    {
-        case REGISTER_NULL:
-            return 0;
-        case REGISTER_8_BITS:
-            return 1;
-        case REGISTER_16_BITS:
-            return 2;
-        case REGISTER_24_BITS:
-            return 3;
-        case REGISTER_32_BITS:
-            return 4;
-    }
+    return deviceRegisterBytes;
 }
 
-TransactionDirection I2cTransaction::getDirection(void)
+bool I2cTransaction::isTx(void)
 {
-    return direction;
+    return direction == TX;
 }
 
-bool I2cTransaction::isRead(void)
+bool I2cTransaction::isRx(void)
 {
-    return direction == TRANSACTION_RX;
+    return direction == RX;
 }
 
-bool I2cTransaction::isWrite(void)
+I2cTransaction::Builder& I2cTransaction::Builder::setDirection(Direction direction)
 {
-    return direction == TRANSACTION_TX;
+    transaction.direction = direction;
+    return *this;
 }
 
-I2cTransactionStatus I2cTransaction::getStatus(void)
+I2cTransaction::Builder& I2cTransaction::Builder::withData(uint8_t* data, uint16_t sizeBytes)
 {
-    return status;
+    transaction.data = data;
+    transaction.dataBytes = sizeBytes;
+    return *this;
 }
 
-void I2cTransaction::setStatus(I2cTransactionStatus newStatus)
+I2cTransaction::Builder& I2cTransaction::Builder::withRegister(uint32_t deviceRegister, uint8_t length)
 {
-    status = newStatus;
+    transaction.deviceRegister = deviceRegister;
+    transaction.deviceRegisterBytes = length;
+    return *this;
 }
 
-bool I2cTransaction::isDone(void)
+I2cTransaction::Builder& I2cTransaction::Builder::withPreCallback(std::function<void(void*)> function, void* parameters)
 {
-    return status == TRANSACTION_SENT || status == TRANSACTION_ERROR;
+    transaction.preCallbackParameters = parameters;
+    transaction.preCallbackFunction = function;
+    return *this;
 }
 
-void I2cTransaction::send(void)
+I2cTransaction::Builder& I2cTransaction::Builder::withPostCallback(std::function<void(void*)> function, void* parameters)
 {
-    if(!device)
-        throw I2cException("Device for the I2cTransaction not set");
-
-    device->setTransaction(*this);
+    transaction.postCallbackParameters = parameters;
+    transaction.postCallbackFunction = function;
+    return *this;
 }
 
-void I2cTransaction::preCallback()
+I2cTransaction::Builder& I2cTransaction::Builder::withErrorCallback(std::function<void(void*)> function, void* parameters)
 {
-    if(preCallbackFunction)
-        preCallbackFunction(preCallbackParameters);
-    this->setStatus(TRANSACTION_IN_PROGRESS);
+    transaction.errorCallbackParameters = parameters;
+    transaction.errorCallbackFunction = function;
+    return *this;
 }
 
-void I2cTransaction::postCallback()
+I2cTransaction I2cTransaction::Builder::build()
 {
-    this->setStatus(TRANSACTION_SENT);
-    if(postCallbackFunction)
-        postCallbackFunction(postCallbackParameters);
-}
-
-void I2cTransaction::errorCallback()
-{
-    if(errorCallbackFunction)
-        errorCallbackFunction(errorCallbackParameters);
+    return transaction;
 }

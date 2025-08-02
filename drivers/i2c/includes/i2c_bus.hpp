@@ -50,9 +50,6 @@ void I2C3_EV_IRQHandler(void);
 #endif
 
 class I2cDevice;
-
-struct I2cBusConfig;
-
 typedef enum
 {
     I2C_BUS_IDLE,
@@ -76,6 +73,35 @@ I2cBusStatus;
 
 class I2cBus
 {
+    public:
+        class Builder;
+
+        struct Config;
+
+        I2C_TypeDef* getInstance(void);
+
+        void init(const Config& config);
+
+        I2cBus() = default;
+        I2cBus(const Config& config);
+
+        bool verifyPendingTransaction();
+
+        /*
+         *  @brief Checks whether the address is valid, taking into account the addressing mode
+         *  (7 bit or 10 bit)
+         *
+         *	@param address Address to be checked
+         *	@param addressing7bit Addressing mode to consider (false: 10 bit- true: 7 bit)
+         */
+        bool checkAddressValidity(uint16_t address, bool addressing7bit);
+
+        I2cBusSelection getBusNumber(void);
+
+        I2cBusStatus getStatus();
+
+        uint32_t getCurrentIndex();
+
     protected:
         static std::array<I2cBus*, I2C_BUS_MAX> drivers;
 
@@ -110,7 +136,7 @@ class I2cBus
          *
          *  @throws I2cException: If there's a HAL error.
          */
-        void initInstance(const I2cBusConfig& config);
+        void initInstance(const Config& config);
 
         uint32_t verifyTimer();
 
@@ -160,45 +186,6 @@ class I2cBus
 
         void eventSlaveCallback();
         void eventMasterCallback();
-
-    public:
-        class Builder;
-
-        I2C_TypeDef* getInstance(void);
-
-        explicit I2cBus(const I2cBusConfig& config);
-
-        I2cBus(
-            std::string name,
-            Queue<I2cTransaction> *queue,
-            I2cBusSelection bus,
-            uint32_t clockSpeed,
-            bool addressing7Bit = true,
-            I2cDutyCycle dutyCycle = I2C_DUTY_CYCLE_2,
-            bool masterOnly = true,
-            bool dualAddress = false,
-            uint16_t ownAddress1 = 0,
-            uint16_t ownAddress2 = 0,
-            bool clockStretching = false,
-            bool generalCall = false
-        );
-
-        bool verifyPendingTransaction();
-
-        /*
-         *  @brief Checks whether the address is valid, taking into account the addressing mode
-         *  (7 bit or 10 bit)
-         *
-         *	@param address Address to be checked
-         *	@param addressing7bit Addressing mode to consider (false: 10 bit- true: 7 bit)
-         */
-        bool checkAddressValidity(uint16_t address, bool addressing7bit);
-
-        I2cBusSelection getBusNumber(void);
-
-        I2cBusStatus getStatus();
-
-        uint32_t getCurrentIndex();
 
     friend class I2cDevice;
 
