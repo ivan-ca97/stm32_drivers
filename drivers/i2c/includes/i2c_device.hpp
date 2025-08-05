@@ -13,7 +13,7 @@ class I2cDevice
         I2cDevice(uint16_t address, I2cBus* bus = nullptr, std::string name = "");
         ~I2cDevice();
 
-        uint16_t getAddress(void);
+        uint16_t getAddress();
 
         void attachBus(I2cBus* bus);
 

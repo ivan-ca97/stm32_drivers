@@ -20,13 +20,13 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-void TIM1_UP_TIM10_IRQHandler(void);
-void TIM1_BRK_TIM9_IRQHandler(void);
-void TIM1_TRG_COM_TIM11_IRQHandler(void);
-void TIM1_CC_IRQHandler(void);
-void TIM2_IRQHandler(void);
-void TIM3_IRQHandler(void);
-void TIM4_IRQHandler(void);
+void TIM1_UP_TIM10_IRQHandler();
+void TIM1_BRK_TIM9_IRQHandler();
+void TIM1_TRG_COM_TIM11_IRQHandler();
+void TIM1_CC_IRQHandler();
+void TIM2_IRQHandler();
+void TIM3_IRQHandler();
+void TIM4_IRQHandler();
 #ifdef __cplusplus
 }
 #endif
@@ -111,11 +111,11 @@ class Timer
         void forceUpdate();
 
     // Interrupt handlers declared as friends
-    friend void TIM1_UP_TIM10_IRQHandler(void);
-    friend void TIM1_BRK_TIM9_IRQHandler(void);
-    friend void TIM1_TRG_COM_TIM11_IRQHandler(void);
-    friend void TIM1_CC_IRQHandler(void);
-    friend void TIM2_IRQHandler(void);
-    friend void TIM3_IRQHandler(void);
-    friend void TIM4_IRQHandler(void);
+    friend void TIM1_UP_TIM10_IRQHandler();
+    friend void TIM1_BRK_TIM9_IRQHandler();
+    friend void TIM1_TRG_COM_TIM11_IRQHandler();
+    friend void TIM1_CC_IRQHandler();
+    friend void TIM2_IRQHandler();
+    friend void TIM3_IRQHandler();
+    friend void TIM4_IRQHandler();
 };

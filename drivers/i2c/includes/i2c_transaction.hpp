@@ -18,27 +18,27 @@ class I2cTransaction
         }
         Direction;
 
-        uint16_t getAddress(void);
+        uint16_t getAddress();
 
         uint8_t getByte(uint16_t index);
 
         void setByte(uint8_t byte, uint16_t index);
 
-        uint8_t* getDataPointer(void);
+        uint8_t* getDataPointer();
 
-        uint16_t getDataLengthBytes(void);
+        uint16_t getDataLengthBytes();
 
-        uint32_t getRegister(void);
+        uint32_t getRegister();
 
-        bool hasRegister(void);
+        bool hasRegister();
 
         uint8_t getRegisterByte(uint8_t index);
 
-        uint8_t getRegisterLengthBytes(void);
+        uint8_t getRegisterLengthBytes();
 
-        bool isTx(void);
+        bool isTx();
 
-        bool isRx(void);
+        bool isRx();
 
         void preCallback();
 

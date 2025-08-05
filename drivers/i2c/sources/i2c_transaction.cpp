@@ -20,7 +20,7 @@ void I2cTransaction::errorCallback()
         errorCallbackFunction(errorCallbackParameters);
 }
 
-uint16_t I2cTransaction::getAddress(void)
+uint16_t I2cTransaction::getAddress()
 {
     return device->getAddress();
 }
@@ -39,22 +39,22 @@ void I2cTransaction::setByte(uint8_t byte, uint16_t index)
     data[index] = byte;
 }
 
-uint8_t* I2cTransaction::getDataPointer(void)
+uint8_t* I2cTransaction::getDataPointer()
 {
     return data;
 }
 
-uint16_t I2cTransaction::getDataLengthBytes(void)
+uint16_t I2cTransaction::getDataLengthBytes()
 {
     return dataBytes;
 }
 
-uint32_t I2cTransaction::getRegister(void)
+uint32_t I2cTransaction::getRegister()
 {
     return deviceRegister;
 }
 
-bool I2cTransaction::hasRegister(void)
+bool I2cTransaction::hasRegister()
 {
     return deviceRegisterBytes > 0;
 }
@@ -69,17 +69,17 @@ uint8_t I2cTransaction::getRegisterByte(uint8_t index)
     return static_cast<uint8_t>((deviceRegister >> shift) & 0xFF);
 }
 
-uint8_t I2cTransaction::getRegisterLengthBytes(void)
+uint8_t I2cTransaction::getRegisterLengthBytes()
 {
     return deviceRegisterBytes;
 }
 
-bool I2cTransaction::isTx(void)
+bool I2cTransaction::isTx()
 {
     return direction == TX;
 }
 
-bool I2cTransaction::isRx(void)
+bool I2cTransaction::isRx()
 {
     return direction == RX;
 }
