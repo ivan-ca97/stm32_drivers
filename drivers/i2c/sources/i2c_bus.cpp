@@ -267,8 +267,6 @@ void I2cBus::initInstance(const Config& config)
     if(initStatus != SUCCESS)
         throw I2cException("Error initializing I2C.");
 
-    // LL_I2C_Enable(instance);
-
     // Dual address
     LL_I2C_SetOwnAddress2(instance, config.ownAddress2);
     if(config.ownAddress2 != 0x00)
@@ -343,23 +341,6 @@ void I2cBus::initGpio()
     }
 }
 
-void I2cBus::deinitGpio()
-{
-    switch (bus)
-    {
-        case I2C_BUS_1:
-            HAL_GPIO_DeInit(GPIOB, GPIO_PIN_6 | GPIO_PIN_7);
-            break;
-        case I2C_BUS_2:
-            HAL_GPIO_DeInit(GPIOB, GPIO_PIN_3 | GPIO_PIN_10);
-            break;
-        case I2C_BUS_3:
-            HAL_GPIO_DeInit(GPIOA, GPIO_PIN_8);
-            HAL_GPIO_DeInit(GPIOB, GPIO_PIN_4);
-            break;
-    }
-}
-
 void I2cBus::initNvic()
 {
     IRQn_Type eventInterrupt;
@@ -390,6 +371,48 @@ void I2cBus::initNvic()
     NVIC_EnableIRQ(errorInterrupt);
 }
 
+void I2cBus::deinitGpio()
+{
+    switch (bus)
+    {
+        case I2C_BUS_1:
+            HAL_GPIO_DeInit(GPIOB, GPIO_PIN_6 | GPIO_PIN_7);
+            break;
+        case I2C_BUS_2:
+            HAL_GPIO_DeInit(GPIOB, GPIO_PIN_3 | GPIO_PIN_10);
+            break;
+        case I2C_BUS_3:
+            HAL_GPIO_DeInit(GPIOA, GPIO_PIN_8);
+            HAL_GPIO_DeInit(GPIOB, GPIO_PIN_4);
+            break;
+    }
+}
+
+void I2cBus::deinitNvic()
+{
+    IRQn_Type eventInterrupt;
+    IRQn_Type errorInterrupt;
+
+    switch(this->bus)
+    {
+        case I2C_BUS_1:
+            eventInterrupt = I2C1_EV_IRQn;
+            errorInterrupt = I2C1_ER_IRQn;
+            break;
+        case I2C_BUS_2:
+            eventInterrupt = I2C2_EV_IRQn;
+            errorInterrupt = I2C2_ER_IRQn;
+            break;
+        case I2C_BUS_3:
+            eventInterrupt = I2C3_EV_IRQn;
+            errorInterrupt = I2C3_ER_IRQn;
+            break;
+    }
+
+    NVIC_DisableIRQ(eventInterrupt);
+    NVIC_DisableIRQ(errorInterrupt);
+}
+
 void I2cBus::attachDevice(I2cDevice& device)
 {
     attachedDevices->add(&device);
@@ -415,6 +438,8 @@ I2cBus::~I2cBus()
 {
     drivers[bus] = nullptr;
     deinitGpio();
+    deinitNvic();
+    LL_I2C_Disable(this->instance);
 
     auto length = attachedDevices->getLength();
     for(uint16_t i = 0; i < length; i++)

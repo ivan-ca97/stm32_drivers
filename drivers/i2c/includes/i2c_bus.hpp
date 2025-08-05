@@ -152,9 +152,11 @@ class I2cBus
 
         void initGpio();
 
+        void initNvic();
+
         void deinitGpio();
 
-        void initNvic();
+        void deinitNvic();
 
         /*
          *  @brief Checks whether the addresses are valid, taking into account the addressing mode
