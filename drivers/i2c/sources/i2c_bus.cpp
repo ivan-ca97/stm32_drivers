@@ -57,7 +57,7 @@ bool I2cBus::sendNextTransaction()
     return true;
 }
 
-void I2cBus::setTransaction(I2cTransaction &transaction)
+void I2cBus::setTransaction(const I2cTransaction& transaction)
 {
     queue->enqueue(transaction);
 

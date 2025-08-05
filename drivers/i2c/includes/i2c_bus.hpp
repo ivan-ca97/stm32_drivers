@@ -176,7 +176,7 @@ class I2cBus
 
         bool sendNextTransaction();
 
-        void setTransaction(I2cTransaction &transaction);
+        void setTransaction(const I2cTransaction& transaction);
 
         void eventCallback();
 
