@@ -40,12 +40,12 @@ I2cDutyCycle;
 #ifdef __cplusplus
 extern "C" {
 #endif
-void I2C1_ER_IRQHandler(void);
-void I2C1_EV_IRQHandler(void);
-void I2C2_ER_IRQHandler(void);
-void I2C2_EV_IRQHandler(void);
-void I2C3_ER_IRQHandler(void);
-void I2C3_EV_IRQHandler(void);
+void I2C1_ER_IRQHandler();
+void I2C1_EV_IRQHandler();
+void I2C2_ER_IRQHandler();
+void I2C2_EV_IRQHandler();
+void I2C3_ER_IRQHandler();
+void I2C3_EV_IRQHandler();
 #ifdef __cplusplus
 }
 #endif
@@ -79,7 +79,7 @@ class I2cBus
 
         struct Config;
 
-        I2C_TypeDef* getInstance(void);
+        I2C_TypeDef* getInstance();
 
         void init(const Config& config);
 
@@ -98,7 +98,7 @@ class I2cBus
          */
         bool checkAddressValidity(uint16_t address, bool addressing7bit);
 
-        I2cBusSelection getBusNumber(void);
+        I2cBusSelection getBusNumber();
 
         I2cBusStatus getStatus();
 
@@ -150,9 +150,11 @@ class I2cBus
 
         void registerDriver(I2cBusSelection bus);
 
-        void initGpio(void);
+        void initGpio();
 
-        void initNvic(void);
+        void deinitGpio();
+
+        void initNvic();
 
         /*
          *  @brief Checks whether the addresses are valid, taking into account the addressing mode
@@ -198,15 +200,15 @@ class I2cBus
     friend class I2cDevice;
 
     // Interrupt handlers declared as friends
-    friend void I2C1_EV_IRQHandler(void);
+    friend void I2C1_EV_IRQHandler();
 
-    friend void I2C2_EV_IRQHandler(void);
+    friend void I2C2_EV_IRQHandler();
 
-    friend void I2C3_EV_IRQHandler(void);
+    friend void I2C3_EV_IRQHandler();
 
-    friend void I2C1_ER_IRQHandler(void);
+    friend void I2C1_ER_IRQHandler();
 
-    friend void I2C2_ER_IRQHandler(void);
+    friend void I2C2_ER_IRQHandler();
 
-    friend void I2C3_ER_IRQHandler(void);
+    friend void I2C3_ER_IRQHandler();
 };

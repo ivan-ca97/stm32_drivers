@@ -12,7 +12,7 @@
 // Initialize with empty drivers array.
 std::array<I2cBus*, I2C_BUS_MAX> I2cBus::drivers = {};
 
-I2C_TypeDef* I2cBus::getInstance(void)
+I2C_TypeDef* I2cBus::getInstance()
 {
     return instance;
 }
@@ -39,7 +39,7 @@ bool I2cBus::verifyPendingTransaction()
     return sendNextTransaction();
 }
 
-bool I2cBus::sendNextTransaction(void)
+bool I2cBus::sendNextTransaction()
 {
     currentTransaction = queue->peek();
     if(!currentTransaction)
@@ -188,7 +188,7 @@ bool I2cBus::checkAddressValidity(uint16_t address, bool addressing7bit)
     return true;
 }
 
-I2cBusSelection I2cBus::getBusNumber(void)
+I2cBusSelection I2cBus::getBusNumber()
 {
     return bus;
 }
@@ -292,7 +292,7 @@ void I2cBus::initInstance(const Config& config)
     LL_I2C_AcknowledgeNextData(instance, LL_I2C_ACK);
 }
 
-void I2cBus::initGpio(void)
+void I2cBus::initGpio()
 {
     uint32_t pinMaskA = 0;
     uint32_t pinMaskB = 0;
@@ -343,7 +343,24 @@ void I2cBus::initGpio(void)
     }
 }
 
-void I2cBus::initNvic(void)
+void I2cBus::deinitGpio()
+{
+    switch (bus)
+    {
+        case I2C_BUS_1:
+            HAL_GPIO_DeInit(GPIOB, GPIO_PIN_6 | GPIO_PIN_7);
+            break;
+        case I2C_BUS_2:
+            HAL_GPIO_DeInit(GPIOB, GPIO_PIN_3 | GPIO_PIN_10);
+            break;
+        case I2C_BUS_3:
+            HAL_GPIO_DeInit(GPIOA, GPIO_PIN_8);
+            HAL_GPIO_DeInit(GPIOB, GPIO_PIN_4);
+            break;
+    }
+}
+
+void I2cBus::initNvic()
 {
     IRQn_Type eventInterrupt;
     IRQn_Type errorInterrupt;
@@ -397,6 +414,8 @@ void I2cBus::detachDevice(I2cDevice& device)
 I2cBus::~I2cBus()
 {
     drivers[bus] = nullptr;
+    deinitGpio();
+
     auto length = attachedDevices->getLength();
     for(uint16_t i = 0; i < length; i++)
         attachedDevices->pop()->detachBus();
