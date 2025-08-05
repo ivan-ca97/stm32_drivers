@@ -380,14 +380,24 @@ void I2cBus::attachDevice(I2cDevice& device)
 
 void I2cBus::detachDevice(I2cDevice& device)
 {
+    int length = static_cast<int>(queue->size());
+    for(auto i = length - 1; i >= 0; i--)
+        if(queue->peek(i)->getAddress() == device.getAddress())
+        {
+            // If the transaction to remove is the current one, stop it.
+            if(i == 0 && status != I2C_BUS_IDLE)
+                finishCurrentTransaction(false);
+            else
+                queue->dequeue(i);
+        }
+
     attachedDevices->remove(&device);
 }
 
 I2cBus::~I2cBus()
 {
+    drivers[bus] = nullptr;
     auto length = attachedDevices->getLength();
     for(uint16_t i = 0; i < length; i++)
-    {
         attachedDevices->pop()->detachBus();
-    }
 }
