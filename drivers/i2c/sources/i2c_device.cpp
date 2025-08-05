@@ -13,7 +13,7 @@ I2cDevice::~I2cDevice()
         bus->detachDevice(*this);
 }
 
-uint16_t I2cDevice::getAddress(void)
+uint16_t I2cDevice::getAddress()
 {
     return address;
 }
