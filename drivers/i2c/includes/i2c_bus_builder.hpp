@@ -3,7 +3,6 @@
 
 struct I2cBus::Config
 {
-    Queue<I2cTransaction>* queue = nullptr;
     I2cBusSelection bus;
     std::string name;
     uint32_t clockSpeed;
@@ -13,8 +12,10 @@ struct I2cBus::Config
     uint16_t ownAddress2 = 0;
     bool clockStretching = true;
     bool generalCall = false;
-    Timer* timer = nullptr;
+    Queue<I2cTransaction>* queue = nullptr;
+    Set<I2cDevice*>* devicesSet = nullptr;
     I2cSlave* slave = nullptr;
+    Timer* timer = nullptr;
     uint16_t retryIntervalMs;
 };
 
@@ -25,11 +26,9 @@ class I2cBus::Builder
         Config config;
 
     public:
-        void buildIn(I2cBus* target);
+        void buildIn(I2cBus& target);
 
         Config buildConfig();
-
-        Builder& withQueue(Queue<I2cTransaction> *queue);
 
         Builder& withBusSelection(I2cBusSelection bus);
 
@@ -37,7 +36,7 @@ class I2cBus::Builder
 
         Builder& setName(std::string name);
 
-        Builder& enableSlave(uint16_t ownAddress);
+        Builder& enableSlave(uint16_t ownAddress, I2cSlave& slave);
 
         Builder& setOwnAddress2(uint16_t ownAddress2);
 
@@ -49,9 +48,11 @@ class I2cBus::Builder
 
         Builder& enableSlaveGeneralCall();
 
-        Builder& withTimer(Timer* timer);
+        Builder& withQueue(Queue<I2cTransaction>& queue);
 
-        Builder& withSlave(I2cSlave* slave);
+        Builder& withDevicesSet(Set<I2cDevice*>& queue);
+
+        Builder& withTimer(Timer& timer);
 
         Builder& setRetryIntervalMs(uint16_t retryIntervalMs);
 };

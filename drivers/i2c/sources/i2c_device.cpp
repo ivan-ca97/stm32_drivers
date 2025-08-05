@@ -4,7 +4,12 @@
 I2cDevice::I2cDevice(uint16_t address, I2cBus* bus, std::string name)
     : address(address), bus(bus), name(name)
 {
+    bus->attachDevice(*this);
+}
 
+I2cDevice::~I2cDevice()
+{
+    bus->detachDevice(*this);
 }
 
 uint16_t I2cDevice::getAddress(void)

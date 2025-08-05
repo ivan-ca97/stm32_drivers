@@ -25,6 +25,7 @@ target_include_directories(i2c_driver PUBLIC
 target_link_libraries(i2c_driver
     ${STM32_BASE_LIBRARIES}
     timer_driver
-    queue
     custom_exception
+    queue
+    set
 )
