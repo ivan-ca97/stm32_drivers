@@ -9,7 +9,8 @@ I2cDevice::I2cDevice(uint16_t address, I2cBus* bus, std::string name)
 
 I2cDevice::~I2cDevice()
 {
-    bus->detachDevice(*this);
+    if(bus)
+        bus->detachDevice(*this);
 }
 
 uint16_t I2cDevice::getAddress(void)
@@ -20,9 +21,7 @@ uint16_t I2cDevice::getAddress(void)
 void I2cDevice::attachBus(I2cBus* bus)
 {
     if(this->bus != nullptr)
-    {
         throw I2cException("Device already attached to a bus");
-    }
 
     this->bus = bus;
 }
