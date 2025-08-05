@@ -1,3 +1,5 @@
+#include <stdexcept>
+
 #include "queue.hpp"
 
 template <typename ElementType, size_t BufferSize>
@@ -5,7 +7,7 @@ void StaticQueue<ElementType, BufferSize>::enqueue(const ElementType& element)
 {
     if (isFull())
     {
-        throw std::overflow_error("Queue is full");
+        throw std::overflow_error("Queue is full.");
     }
     buffer[rear] = element;
     rear = (rear + 1) % BufferSize;
@@ -17,7 +19,7 @@ ElementType StaticQueue<ElementType, BufferSize>::dequeue()
 {
     if(isEmpty())
     {
-        throw std::underflow_error("Queue is empty");
+        throw std::underflow_error("Queue is empty.");
     }
 
     size_t position = front;

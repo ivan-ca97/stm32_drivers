@@ -10,6 +10,7 @@
 
 #include "timer.hpp"
 #include "queue.hpp"
+#include "set.hpp"
 
 #define I2C_BUS_MAX 3
 
@@ -84,6 +85,7 @@ class I2cBus
 
         I2cBus() = default;
         I2cBus(const Config& config);
+        ~I2cBus();
 
         bool verifyPendingTransaction();
 
@@ -107,9 +109,9 @@ class I2cBus
 
         I2cSlave* slave = nullptr;
 
-        static void handleInterrupt(I2cBusSelection bus, I2cInterruptType type);
-
         Queue<I2cTransaction>* queue;
+
+        Set<I2cDevice*>* attachedDevices;
 
         I2cTransaction* currentTransaction = nullptr;
 
@@ -129,6 +131,14 @@ class I2cBus
 
         uint32_t currentIndex;
 
+        static void handleInterrupt(I2cBusSelection bus, I2cInterruptType type);
+
+        static void timerCallback(void* argument);
+
+        uint32_t verifyTimer();
+
+        void scheduleTimer();
+
         /*
          *  @brief Initializes the I2C instance with the given parameters
          *
@@ -137,12 +147,6 @@ class I2cBus
          *  @throws I2cException: If there's a HAL error.
          */
         void initInstance(const Config& config);
-
-        uint32_t verifyTimer();
-
-        void scheduleTimer();
-
-        static void timerCallback(void* argument);
 
         void registerDriver(I2cBusSelection bus);
 
@@ -162,7 +166,11 @@ class I2cBus
          */
         void areAddressesValid(uint16_t ownAddress1, uint16_t ownAddress2, bool addressing7bit);
 
-        bool sendNextTransaction(void);
+        void attachDevice(I2cDevice& device);
+
+        void detachDevice(I2cDevice& device);
+
+        bool sendNextTransaction();
 
         void setTransaction(I2cTransaction &transaction);
 

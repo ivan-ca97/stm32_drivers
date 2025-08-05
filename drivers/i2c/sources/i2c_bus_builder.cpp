@@ -1,11 +1,5 @@
 #include "i2c_bus_builder.hpp"
 
-I2cBus::Builder& I2cBus::Builder::withQueue(Queue<I2cTransaction> *queue)
-{
-    config.queue = queue;
-    return *this;
-}
-
 I2cBus::Builder& I2cBus::Builder::withBusSelection(I2cBusSelection bus)
 {
     config.bus = bus;
@@ -24,9 +18,10 @@ I2cBus::Builder& I2cBus::Builder::setName(std::string name)
     return *this;
 }
 
-I2cBus::Builder& I2cBus::Builder::enableSlave(uint16_t ownAddress)
+I2cBus::Builder& I2cBus::Builder::enableSlave(uint16_t ownAddress, I2cSlave& slave)
 {
     config.ownAddress1 = ownAddress;
+    config.slave = &slave;
     return *this;
 }
 
@@ -60,15 +55,21 @@ I2cBus::Builder& I2cBus::Builder::enableSlaveGeneralCall()
     return *this;
 }
 
-I2cBus::Builder& I2cBus::Builder::withTimer(Timer* timer)
+I2cBus::Builder& I2cBus::Builder::withQueue(Queue<I2cTransaction>& queue)
 {
-    config.timer = timer;
+    config.queue = &queue;
     return *this;
 }
 
-I2cBus::Builder& I2cBus::Builder::withSlave(I2cSlave* slave)
+I2cBus::Builder& I2cBus::Builder::withDevicesSet(Set<I2cDevice*>& devicesSet)
 {
-    config.slave = slave;
+    config.devicesSet = &devicesSet;
+    return *this;
+}
+
+I2cBus::Builder& I2cBus::Builder::withTimer(Timer& timer)
+{
+    config.timer = &timer;
     return *this;
 }
 
@@ -78,9 +79,9 @@ I2cBus::Builder& I2cBus::Builder::setRetryIntervalMs(uint16_t retryIntervalMs)
     return *this;
 }
 
-void I2cBus::Builder::buildIn(I2cBus* target)
+void I2cBus::Builder::buildIn(I2cBus& target)
 {
-    return target->init(config);
+    return target.init(config);
 }
 
 I2cBus::Config I2cBus::Builder::buildConfig()

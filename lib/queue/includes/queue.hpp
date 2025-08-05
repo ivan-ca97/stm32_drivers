@@ -1,7 +1,6 @@
 #pragma once
 
 #include <array>
-#include <stdexcept>
 
 template <typename ElementType>
 class Queue

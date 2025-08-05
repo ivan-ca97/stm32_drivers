@@ -1,7 +1,6 @@
 #include "i2c_bus.hpp"
 #include "i2c_bus_builder.hpp"
-
-#include <algorithm>
+#include "i2c_device.hpp"
 
 #include "stm32f4xx_ll_i2c.h"
 
@@ -63,9 +62,7 @@ void I2cBus::setTransaction(I2cTransaction &transaction)
     queue->enqueue(transaction);
 
     if(queue->size() == 1 && status == I2C_BUS_IDLE)
-    {
         sendNextTransaction();
-    }
 }
 
 void I2cBus::eventCallback()
@@ -129,11 +126,12 @@ uint32_t I2cBus::verifyTimer()
 
 void I2cBus::init(const Config& config)
 {
-    queue = config.queue;
     bus = config.bus;
     name = config.name;
-    timer = config.timer;
     slave = config.slave;
+    queue = config.queue;
+    attachedDevices = config.devicesSet;
+    timer = config.timer;
     retryIntervalMs = config.retryIntervalMs;
 
     if(timer)
@@ -373,4 +371,23 @@ void I2cBus::initNvic(void)
     NVIC_SetPriority(errorInterrupt, I2C_ERROR_IRQ_PRIORITY);
     NVIC_EnableIRQ(eventInterrupt);
     NVIC_EnableIRQ(errorInterrupt);
+}
+
+void I2cBus::attachDevice(I2cDevice& device)
+{
+    attachedDevices->add(&device);
+}
+
+void I2cBus::detachDevice(I2cDevice& device)
+{
+    attachedDevices->remove(&device);
+}
+
+I2cBus::~I2cBus()
+{
+    auto length = attachedDevices->getLength();
+    for(uint16_t i = 0; i < length; i++)
+    {
+        attachedDevices->pop()->detachBus();
+    }
 }

@@ -11,6 +11,7 @@ class I2cDevice
 
     public:
         I2cDevice(uint16_t address, I2cBus* bus = nullptr, std::string name = "");
+        ~I2cDevice();
 
         uint16_t getAddress(void);
 

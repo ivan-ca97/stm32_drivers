@@ -6,14 +6,16 @@ endif()
 
 project(stm32_drivers LANGUAGES CXX)
 
-add_subdirectory(drivers/i2c)
-add_subdirectory(drivers/timer)
-add_subdirectory(lib/queue)
 add_subdirectory(lib/custom_exception)
+add_subdirectory(lib/queue)
+add_subdirectory(lib/set)
+add_subdirectory(drivers/timer)
+add_subdirectory(drivers/i2c)
 
 target_link_libraries(${CMAKE_PROJECT_NAME}
     custom_exception
     queue
+    set
     timer_driver
     i2c_driver
 )
