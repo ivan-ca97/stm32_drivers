@@ -31,7 +31,7 @@ void I2cDevice::detachBus()
     this->bus = nullptr;
 }
 
-void I2cDevice::setTransaction(const I2cTransaction& transaction)
+void I2cDevice::setTransaction(I2cTransaction& transaction)
 {
     bus->setTransaction(transaction);
 }

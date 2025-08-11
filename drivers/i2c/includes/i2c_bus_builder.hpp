@@ -12,7 +12,7 @@ struct I2cBus::Config
     uint16_t ownAddress2 = 0;
     bool clockStretching = true;
     bool generalCall = false;
-    Queue<I2cTransaction>* queue = nullptr;
+    Queue<I2cTransaction*>* queue = nullptr;
     Set<I2cDevice*>* devicesSet = nullptr;
     I2cSlave* slave = nullptr;
     Timer* timer = nullptr;
@@ -48,7 +48,7 @@ class I2cBus::Builder
 
         Builder& enableSlaveGeneralCall();
 
-        Builder& withQueue(Queue<I2cTransaction>& queue);
+        Builder& withQueue(Queue<I2cTransaction*>& queue);
 
         Builder& withDevicesSet(Set<I2cDevice*>& queue);
 

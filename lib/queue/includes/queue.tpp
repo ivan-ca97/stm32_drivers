@@ -3,7 +3,7 @@
 #include "queue.hpp"
 
 template <typename ElementType, size_t BufferSize>
-void StaticQueue<ElementType, BufferSize>::enqueue(const ElementType& element)
+void StaticQueue<ElementType, BufferSize>::enqueue(const ElementType element)
 {
     if (isFull())
         throw std::overflow_error("Queue is full.");

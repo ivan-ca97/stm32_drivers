@@ -41,9 +41,11 @@ bool I2cBus::verifyPendingTransaction()
 
 bool I2cBus::sendNextTransaction()
 {
-    currentTransaction = queue->peek();
-    if(!currentTransaction)
+    auto newTransaction = queue->peek();
+    if(!newTransaction)
         return false;
+
+    currentTransaction = *newTransaction;
 
     if(LL_I2C_IsActiveFlag_BUSY(instance))
     {
@@ -57,9 +59,9 @@ bool I2cBus::sendNextTransaction()
     return true;
 }
 
-void I2cBus::setTransaction(const I2cTransaction& transaction)
+void I2cBus::setTransaction(I2cTransaction& transaction)
 {
-    queue->enqueue(transaction);
+    queue->enqueue(&transaction);
 
     if(queue->size() == 1 && status == I2C_BUS_IDLE)
         sendNextTransaction();
@@ -97,7 +99,6 @@ void I2cBus::handleInterrupt(I2cBusSelection bus, I2cInterruptType type)
         switch(type)
         {
         case I2C_EVENT:
-            // HAL_I2C_EV_IRQHandler(&driver->handle);
             driver->eventCallback();
             break;
         case I2C_ERROR:
@@ -134,6 +135,9 @@ void I2cBus::init(const Config& config)
     timer = config.timer;
     retryIntervalMs = config.retryIntervalMs;
 
+    if(slave)
+        slave->setBus(*this);
+
     if(timer)
     {
         verifyTimer();
@@ -150,7 +154,7 @@ void I2cBus::init(const Config& config)
     initInstance(config);
 
     initGpio();
-    initNvic();
+    enableInterrupts();
 }
 
 I2cBus::I2cBus(const Config& config)
@@ -175,15 +179,11 @@ bool I2cBus::checkAddressValidity(uint16_t address, bool addressing7bit)
 {
     // Addresses under 0x0F and over 0x78 are reserved in the I2C standard.
     if(addressing7bit && (address <= 0x0F || address >= 0x78))
-    {
         return false;
-    }
 
     // Check that the address exceeds the 10 bit range.
     if(!addressing7bit && address > 0x3FF)
-    {
         return false;
-    }
 
     return true;
 }
@@ -341,7 +341,24 @@ void I2cBus::initGpio()
     }
 }
 
-void I2cBus::initNvic()
+void I2cBus::deinitGpio()
+{
+    switch (bus)
+    {
+        case I2C_BUS_1:
+            HAL_GPIO_DeInit(GPIOB, GPIO_PIN_6 | GPIO_PIN_7);
+            break;
+        case I2C_BUS_2:
+            HAL_GPIO_DeInit(GPIOB, GPIO_PIN_3 | GPIO_PIN_10);
+            break;
+        case I2C_BUS_3:
+            HAL_GPIO_DeInit(GPIOA, GPIO_PIN_8);
+            HAL_GPIO_DeInit(GPIOB, GPIO_PIN_4);
+            break;
+    }
+}
+
+void I2cBus::enableInterrupts()
 {
     IRQn_Type eventInterrupt;
     IRQn_Type errorInterrupt;
@@ -371,24 +388,7 @@ void I2cBus::initNvic()
     NVIC_EnableIRQ(errorInterrupt);
 }
 
-void I2cBus::deinitGpio()
-{
-    switch (bus)
-    {
-        case I2C_BUS_1:
-            HAL_GPIO_DeInit(GPIOB, GPIO_PIN_6 | GPIO_PIN_7);
-            break;
-        case I2C_BUS_2:
-            HAL_GPIO_DeInit(GPIOB, GPIO_PIN_3 | GPIO_PIN_10);
-            break;
-        case I2C_BUS_3:
-            HAL_GPIO_DeInit(GPIOA, GPIO_PIN_8);
-            HAL_GPIO_DeInit(GPIOB, GPIO_PIN_4);
-            break;
-    }
-}
-
-void I2cBus::deinitNvic()
+void I2cBus::disableInterrupts()
 {
     IRQn_Type eventInterrupt;
     IRQn_Type errorInterrupt;
@@ -422,7 +422,9 @@ void I2cBus::detachDevice(I2cDevice& device)
 {
     int length = static_cast<int>(queue->size());
     for(auto i = length - 1; i >= 0; i--)
-        if(queue->peek(i)->getAddress() == device.getAddress())
+    {
+        auto transaction = *queue->peek(i);
+        if(transaction->getAddress() == device.getAddress())
         {
             // If the transaction to remove is the current one, stop it.
             if(i == 0 && status != I2C_BUS_IDLE)
@@ -430,6 +432,7 @@ void I2cBus::detachDevice(I2cDevice& device)
             else
                 queue->dequeue(i);
         }
+    }
 
     attachedDevices->remove(&device);
 }
@@ -438,7 +441,7 @@ I2cBus::~I2cBus()
 {
     drivers[bus] = nullptr;
     deinitGpio();
-    deinitNvic();
+    disableInterrupts();
     LL_I2C_Disable(this->instance);
 
     auto length = attachedDevices->getLength();

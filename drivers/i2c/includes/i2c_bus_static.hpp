@@ -6,7 +6,7 @@ template <size_t TransactionsBufferSize, size_t DevicesBufferSize>
 class I2cBusStatic : public I2cBus
 {
     protected:
-        StaticQueue<I2cTransaction, TransactionsBufferSize> queue;
+        StaticQueue<I2cTransaction*, TransactionsBufferSize> queue;
         StaticSet<I2cDevice*, DevicesBufferSize> devicesSet;
 
     public:
