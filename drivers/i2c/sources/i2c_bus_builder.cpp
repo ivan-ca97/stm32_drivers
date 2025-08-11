@@ -55,7 +55,7 @@ I2cBus::Builder& I2cBus::Builder::enableSlaveGeneralCall()
     return *this;
 }
 
-I2cBus::Builder& I2cBus::Builder::withQueue(Queue<I2cTransaction>& queue)
+I2cBus::Builder& I2cBus::Builder::withQueue(Queue<I2cTransaction*>& queue)
 {
     config.queue = &queue;
     return *this;

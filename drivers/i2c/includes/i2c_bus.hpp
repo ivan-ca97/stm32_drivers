@@ -104,12 +104,15 @@ class I2cBus
 
         uint32_t getCurrentIndex();
 
+        void enableInterrupts();
+        void disableInterrupts();
+
     protected:
         static std::array<I2cBus*, I2C_BUS_MAX> drivers;
 
         I2cSlave* slave = nullptr;
 
-        Queue<I2cTransaction>* queue;
+        Queue<I2cTransaction*>* queue;
 
         Set<I2cDevice*>* attachedDevices;
 
@@ -151,12 +154,7 @@ class I2cBus
         void registerDriver(I2cBusSelection bus);
 
         void initGpio();
-
-        void initNvic();
-
         void deinitGpio();
-
-        void deinitNvic();
 
         /*
          *  @brief Checks whether the addresses are valid, taking into account the addressing mode
@@ -176,7 +174,7 @@ class I2cBus
 
         bool sendNextTransaction();
 
-        void setTransaction(const I2cTransaction& transaction);
+        void setTransaction(I2cTransaction& transaction);
 
         void eventCallback();
 

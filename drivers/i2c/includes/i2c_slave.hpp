@@ -2,6 +2,8 @@
 
 #include <stdint.h>
 
+class I2cBus;
+
 class I2cSlave
 {
     public:
@@ -12,4 +14,9 @@ class I2cSlave
         virtual void onStop() = 0;
 
         virtual void onAddressMatch() = 0;
+
+    protected:
+        virtual void setBus(I2cBus& bus) = 0;
+
+    friend class I2cBus;
 };

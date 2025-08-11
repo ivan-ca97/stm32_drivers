@@ -6,7 +6,7 @@ template <typename ElementType>
 class Queue
 {
     public:
-        virtual void enqueue(const ElementType& element) = 0;
+        virtual void enqueue(const ElementType element) = 0;
 
         virtual ElementType dequeue() = 0;
 
@@ -35,7 +35,7 @@ class StaticQueue : public Queue<ElementType>
         size_t count = 0;
 
     public:
-        void enqueue(const ElementType& element);
+        void enqueue(const ElementType element);
 
         ElementType dequeue();
 
