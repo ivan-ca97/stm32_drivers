@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <string>
 #include <span>
+#include <array>
 
 enum class Permission
 {
@@ -45,4 +46,16 @@ class User
 
         static void setString(std::string_view stringValue, std::span<char> storage, std::string_view errorMessage = "String too long");
         static std::string_view getString(std::span<char> storage);
+};
+
+template <size_t UsernameMaxLength, size_t PasswordMaxLength, size_t NameMaxLength>
+class StaticUser : public User
+{
+    protected:
+        std::array<char, UsernameMaxLength> usernameStorage;
+        std::array<char, PasswordMaxLength> passwordStorage;
+        std::array<char, NameMaxLength> nameStorage;
+
+    public:
+        StaticUser() : User(usernameStorage, passwordStorage, nameStorage) {};
 };
