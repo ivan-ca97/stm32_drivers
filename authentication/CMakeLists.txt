@@ -3,6 +3,7 @@ project(authentication LANGUAGES CXX)
 
 add_library(authentication
     ${CMAKE_CURRENT_SOURCE_DIR}/sources/session.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/sources/user_manager.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/sources/user.cpp
 )
 
