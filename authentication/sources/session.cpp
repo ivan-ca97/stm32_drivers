@@ -2,12 +2,12 @@
 
 #include <random>
 
-Session::Session(User& user, uint32_t validitySeconds, uint32_t currentTime)
+Session::Session(const User& user, uint32_t validitySeconds, uint32_t currentTime)
 {
     start(user, validitySeconds, currentTime);
 }
 
-void Session::start(User& user, uint32_t validitySeconds, uint32_t currentTime)
+void Session::start(const User& user, uint32_t validitySeconds, uint32_t currentTime)
 {
     this->user = &user;
     expireTime = currentTime + validitySeconds;
@@ -17,7 +17,7 @@ void Session::start(User& user, uint32_t validitySeconds, uint32_t currentTime)
     token = dist(rng);
 }
 
-User* Session::getUser() const
+const User* Session::getUser() const
 {
     return user;
 }

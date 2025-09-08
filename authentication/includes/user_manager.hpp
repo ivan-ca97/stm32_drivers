@@ -14,7 +14,9 @@ class UserManager
         const User* getUser(uint16_t id) const;
         void updateUser(uint16_t id, User& updatedUser);
         void deleteUser(std::string_view username);
-        void deleteUser(User& user);
+        void deleteUser(const User& user);
+
+        uint16_t getMaxUsers();
 
         UserManager(std::span<User*> usersStorage);
 

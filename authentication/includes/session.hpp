@@ -8,18 +8,18 @@ class Session
 {
     public:
         Session() = default;
-        Session(User& user, uint32_t validitySeconds, uint32_t currentTime);
+        Session(const User& user, uint32_t validitySeconds, uint32_t currentTime);
 
-        void start(User& user, uint32_t validitySeconds, uint32_t currentTime);
+        void start(const User& user, uint32_t validitySeconds, uint32_t currentTime);
 
-        User* getUser() const;
+        const User* getUser() const;
         TokenType getToken() const;
         bool isExpired() const;
         void update(uint32_t currentTime);
         void expire();
 
     protected:
-        User* user;
-        TokenType token;
-        uint32_t expireTime;
+        const User* user = nullptr;
+        TokenType token = 0;
+        uint32_t expireTime = 0;
 };

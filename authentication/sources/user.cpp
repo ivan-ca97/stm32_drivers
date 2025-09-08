@@ -12,7 +12,7 @@ User::User(std::span<char> usernameStorage, std::span<char> passwordStorage, std
     std::fill(name.begin(), name.end(), '\0');
 }
 
-bool User::authenticate(std::string_view password)
+const bool User::authenticate(std::string_view password) const
 {
     return password == this->password.data();
 }
@@ -104,4 +104,13 @@ std::string_view User::getString(std::span<char> storage)
     auto maxSize = storage.size();
     auto length = std::min(stringLength, maxSize);
     return std::string_view(storage.data(), length);
+}
+
+bool User::operator==(const User& other) const {
+    return
+        id == other.id &&
+        std::string_view(username) == std::string_view(other.username) &&
+        std::string_view(password) == std::string_view(other.password) &&
+        std::string_view(name) == std::string_view(other.name) &&
+        permission == other.permission;
 }

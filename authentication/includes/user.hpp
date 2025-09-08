@@ -18,7 +18,7 @@ class User
     public:
         User(std::span<char> usernameStorage, std::span<char> passwordStorage, std::span<char> nameStorage);
 
-        bool authenticate(std::string_view password);
+        const bool authenticate(std::string_view password) const;
 
         const std::string_view getUsername() const;
         const std::string_view getPassword() const;
@@ -36,10 +36,13 @@ class User
 
         void reset();
 
+        bool operator==(const User& other) const;
+
     protected:
         std::span<char> username;
         std::span<char> password;
         std::span<char> name;
+
         uint16_t id;
         Permission permission;
         bool valid;

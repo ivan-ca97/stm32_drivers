@@ -73,12 +73,21 @@ void UserManager::deleteUser(std::string_view username)
     deleteUser(*user);
 }
 
-void UserManager::deleteUser(User& user)
+void UserManager::deleteUser(const User& user)
 {
-    user.reset();
+    auto storedUser = getUserById(user.getId());
+
+    if(!storedUser || *storedUser != user)
+        throw std::logic_error("User not found.");
+
+    storedUser->reset();
     loadedUsers--;
 }
 
+uint16_t UserManager::getMaxUsers()
+{
+    return users.size();
+}
 
 User* UserManager::getFreeUser()
 {
