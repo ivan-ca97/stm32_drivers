@@ -1,0 +1,55 @@
+#pragma once
+
+#include "session.hpp"
+
+class Clock
+{
+    public:
+        uint32_t getTime() const
+        {
+            return 1;
+        }
+};
+
+class SessionManager
+{
+    public:
+        SessionManager(std::span<Session*> sessionsStorage, const Clock* clock);
+
+        const Session* validate(TokenType token);
+
+        const Session* getSession(const User& user) const;
+
+        const Session* createSession(const User& user);
+
+        void updateSessions();
+
+        bool hasSession(const User& user) const;
+
+    protected:
+        std::span<Session*> sessions;
+
+        const Clock* clock;
+
+        uint32_t sessionValiditySeconds = 3600;
+
+        Session* getFreeSession();
+
+        Session* getSessionByUser(const User& user) const;
+};
+
+template <size_t SessionAmount>
+class StaticSessionManager : public SessionManager
+{
+    protected:
+        std::array<Session, SessionAmount> sessionStorage;
+        std::array<Session*, SessionAmount> sessionPointers;
+
+    public:
+        StaticSessionManager(const Clock* clock)
+            : SessionManager(sessionPointers, clock)
+        {
+            for (size_t i = 0; i < SessionAmount; i++)
+                sessionPointers[i] = &sessionStorage[i];
+        };
+};
