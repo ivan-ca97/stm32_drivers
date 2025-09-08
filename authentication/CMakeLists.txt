@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.15)
 project(authentication LANGUAGES CXX)
 
 add_library(authentication
+    ${CMAKE_CURRENT_SOURCE_DIR}/sources/authentication.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/sources/session.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/sources/session_manager.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/sources/user_manager.cpp
