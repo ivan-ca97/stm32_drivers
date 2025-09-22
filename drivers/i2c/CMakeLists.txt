@@ -1,5 +1,4 @@
 cmake_minimum_required(VERSION 3.15)
-
 project(i2c_driver LANGUAGES CXX)
 
 add_compile_definitions(USE_FULL_LL_DRIVER)

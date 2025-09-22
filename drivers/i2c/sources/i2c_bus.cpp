@@ -55,7 +55,8 @@ bool I2cBus::sendNextTransaction()
     }
 
     LL_I2C_GenerateStartCondition(instance);
-    this->status = I2C_BUS_START_ATTEMPT;
+    currentTransaction->setState(I2cTransaction::STARTING);
+    state = State::StartAttempt;
     return true;
 }
 
@@ -63,45 +64,45 @@ void I2cBus::setTransaction(I2cTransaction& transaction)
 {
     queue->enqueue(&transaction);
 
-    if(queue->size() == 1 && status == I2C_BUS_IDLE)
+    if(queue->size() == 1 && state == State::Idle)
         sendNextTransaction();
 }
 
 void I2cBus::eventCallback()
 {
-    switch(status)
+    switch(state)
     {
-        case I2C_BUS_IDLE:
-        case I2C_BUS_SLAVE_TRANSMIT:
-        case I2C_BUS_SLAVE_RECEIVE:
+        case State::Idle:
+        case State::SlaveTransmit:
+        case State::SlaveReceive:
             eventSlaveCallback();
             break;
 
-        case I2C_BUS_START_ATTEMPT:
-        case I2C_BUS_SEND_SLAVE_ADDRESS:
-        case I2C_BUS_SEND_REGISTER:
-        case I2C_BUS_SEND_DATA:
-        case I2C_BUS_SEND_LAST_DATA_BYTE:
-        case I2C_BUS_LAST_REGISTER_BYTE:
-        case I2C_BUS_REPEATED_START:
-        case I2C_BUS_REPEATED_START_ACK_ADDR:
-        case I2C_BUS_RECEIVE_DATA:
+        case State::StartAttempt:
+        case State::SendSlaveAddress:
+        case State::SendRegister:
+        case State::SendData:
+        case State::SendLastDataByte:
+        case State::LastRegisterByte:
+        case State::RepeatedStart:
+        case State::RepeatedStartAckAddr:
+        case State::ReceiveData:
             eventMasterCallback();
             break;
     }
 }
 
-void I2cBus::handleInterrupt(I2cBusSelection bus, I2cInterruptType type)
+void I2cBus::handleInterrupt(Selection bus, InterruptType type)
 {
-    I2cBus *driver = I2cBus::drivers[bus];
+    I2cBus *driver = I2cBus::drivers[getBusDriverNumber(bus)];
     if(driver)
     {
         switch(type)
         {
-        case I2C_EVENT:
+        case InterruptType::Event:
             driver->eventCallback();
             break;
-        case I2C_ERROR:
+        case InterruptType::Error:
             driver->errorCallback();
             break;
         }
@@ -188,14 +189,14 @@ bool I2cBus::checkAddressValidity(uint16_t address, bool addressing7bit)
     return true;
 }
 
-I2cBusSelection I2cBus::getBusNumber()
+I2cBus::Selection I2cBus::getBusNumber()
 {
     return bus;
 }
 
-I2cBusStatus I2cBus::getStatus()
+I2cBus::State I2cBus::getState()
 {
-    return status;
+    return state;
 }
 
 uint32_t I2cBus::getCurrentIndex()
@@ -203,19 +204,19 @@ uint32_t I2cBus::getCurrentIndex()
     return currentIndex;
 }
 
-void I2cBus::registerDriver(I2cBusSelection bus)
+void I2cBus::registerDriver(Selection bus)
 {
     uint8_t i;
 
     switch(bus)
     {
-        case I2C_BUS_1:
+        case Selection::Bus1:
             i = 0;
             break;
-        case I2C_BUS_2:
+        case Selection::Bus2:
             i = 1;
             break;
-        case I2C_BUS_3:
+        case Selection::Bus3:
             i = 2;
             break;
         default:
@@ -232,13 +233,13 @@ void I2cBus::initInstance(const Config& config)
 {
     switch (this->bus)
     {
-        case I2C_BUS_1:
+        case Selection::Bus1:
             instance = I2C1;
             break;
-        case I2C_BUS_2:
+        case Selection::Bus2:
             instance = I2C2;
             break;
-        case I2C_BUS_3:
+        case Selection::Bus3:
             instance = I2C3;
             break;
         default:
@@ -249,9 +250,9 @@ void I2cBus::initInstance(const Config& config)
     LL_I2C_DeInit(instance);
 
     uint32_t dutyCycle;
-    if(config.dutyCycle == I2C_DUTY_CYCLE_2)
+    if(config.dutyCycle == DutyCycle::Dc_2)
         dutyCycle = LL_I2C_DUTYCYCLE_2;
-    if(config.dutyCycle == I2C_DUTY_CYCLE_16_9)
+    if(config.dutyCycle == DutyCycle::Dc_16_9)
         dutyCycle = LL_I2C_DUTYCYCLE_16_9;
 
     LL_I2C_InitTypeDef i2cInit;
@@ -299,19 +300,19 @@ void I2cBus::initGpio()
 
     switch(bus)
     {
-        case I2C_BUS_1:
+        case Selection::Bus1:
             __HAL_RCC_I2C1_CLK_ENABLE();
 
             pinMaskB = GPIO_PIN_6 | GPIO_PIN_7;
             alternateFunction = GPIO_AF4_I2C1;
             break;
-        case I2C_BUS_2:
+        case Selection::Bus2:
             __HAL_RCC_I2C2_CLK_ENABLE();
 
             pinMaskB = GPIO_PIN_3 | GPIO_PIN_10;
             alternateFunction = GPIO_AF4_I2C2;
             break;
-        case I2C_BUS_3:
+        case Selection::Bus3:
             __HAL_RCC_I2C3_CLK_ENABLE();
 
             pinMaskA = GPIO_PIN_8;
@@ -345,13 +346,13 @@ void I2cBus::deinitGpio()
 {
     switch (bus)
     {
-        case I2C_BUS_1:
+        case Selection::Bus1:
             HAL_GPIO_DeInit(GPIOB, GPIO_PIN_6 | GPIO_PIN_7);
             break;
-        case I2C_BUS_2:
+        case Selection::Bus2:
             HAL_GPIO_DeInit(GPIOB, GPIO_PIN_3 | GPIO_PIN_10);
             break;
-        case I2C_BUS_3:
+        case Selection::Bus3:
             HAL_GPIO_DeInit(GPIOA, GPIO_PIN_8);
             HAL_GPIO_DeInit(GPIOB, GPIO_PIN_4);
             break;
@@ -363,17 +364,17 @@ void I2cBus::enableInterrupts()
     IRQn_Type eventInterrupt;
     IRQn_Type errorInterrupt;
 
-    switch(this->bus)
+    switch(bus)
     {
-        case I2C_BUS_1:
+        case Selection::Bus1:
             eventInterrupt = I2C1_EV_IRQn;
             errorInterrupt = I2C1_ER_IRQn;
             break;
-        case I2C_BUS_2:
+        case Selection::Bus2:
             eventInterrupt = I2C2_EV_IRQn;
             errorInterrupt = I2C2_ER_IRQn;
             break;
-        case I2C_BUS_3:
+        case Selection::Bus3:
             eventInterrupt = I2C3_EV_IRQn;
             errorInterrupt = I2C3_ER_IRQn;
             break;
@@ -393,17 +394,17 @@ void I2cBus::disableInterrupts()
     IRQn_Type eventInterrupt;
     IRQn_Type errorInterrupt;
 
-    switch(this->bus)
+    switch(bus)
     {
-        case I2C_BUS_1:
+        case Selection::Bus1:
             eventInterrupt = I2C1_EV_IRQn;
             errorInterrupt = I2C1_ER_IRQn;
             break;
-        case I2C_BUS_2:
+        case Selection::Bus2:
             eventInterrupt = I2C2_EV_IRQn;
             errorInterrupt = I2C2_ER_IRQn;
             break;
-        case I2C_BUS_3:
+        case Selection::Bus3:
             eventInterrupt = I2C3_EV_IRQn;
             errorInterrupt = I2C3_ER_IRQn;
             break;
@@ -427,7 +428,7 @@ void I2cBus::detachDevice(I2cDevice& device)
         if(transaction->getAddress() == device.getAddress())
         {
             // If the transaction to remove is the current one, stop it.
-            if(i == 0 && status != I2C_BUS_IDLE)
+            if(i == 0 && state != State::Idle)
                 finishCurrentTransaction(false);
             else
                 queue->dequeue(i);
@@ -437,9 +438,23 @@ void I2cBus::detachDevice(I2cDevice& device)
     attachedDevices->remove(&device);
 }
 
+uint16_t I2cBus::getBusDriverNumber(Selection bus)
+{
+    switch(bus)
+    {
+        case Selection::Bus1:
+            return 0;
+        case Selection::Bus2:
+            return 1;
+        case Selection::Bus3:
+            return 2;
+    }
+    return 0;
+}
+
 I2cBus::~I2cBus()
 {
-    drivers[bus] = nullptr;
+    drivers[getBusDriverNumber(bus)] = nullptr;
     deinitGpio();
     disableInterrupts();
     LL_I2C_Disable(this->instance);

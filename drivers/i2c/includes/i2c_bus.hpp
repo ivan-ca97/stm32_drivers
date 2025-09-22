@@ -14,29 +14,6 @@
 
 #define I2C_BUS_MAX 3
 
-typedef enum
-{
-    I2C_BUS_1,
-    I2C_BUS_2,
-    I2C_BUS_3
-}
-I2cBusSelection;
-
-typedef enum
-{
-    I2C_EVENT,
-    I2C_ERROR
-}
-I2cInterruptType;
-
-typedef enum
-{
-    I2C_DUTY_CYCLE_2,
-    I2C_DUTY_CYCLE_16_9
-
-}
-I2cDutyCycle;
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -51,26 +28,6 @@ void I2C3_EV_IRQHandler();
 #endif
 
 class I2cDevice;
-typedef enum
-{
-    I2C_BUS_IDLE,
-
-    I2C_BUS_SLAVE_TRANSMIT,
-    I2C_BUS_SLAVE_RECEIVE,
-
-    I2C_BUS_START_ATTEMPT,
-    I2C_BUS_SEND_SLAVE_ADDRESS,
-    I2C_BUS_SEND_REGISTER,
-
-    I2C_BUS_SEND_DATA,
-    I2C_BUS_SEND_LAST_DATA_BYTE,
-
-    I2C_BUS_LAST_REGISTER_BYTE,
-    I2C_BUS_REPEATED_START,
-    I2C_BUS_REPEATED_START_ACK_ADDR,
-    I2C_BUS_RECEIVE_DATA,
-}
-I2cBusStatus;
 
 class I2cBus
 {
@@ -78,6 +35,46 @@ class I2cBus
         class Builder;
 
         struct Config;
+
+        enum class State
+        {
+            Idle,
+
+            SlaveTransmit,
+            SlaveReceive,
+
+            StartAttempt,
+            SendSlaveAddress,
+            SendRegister,
+
+            SendData,
+            SendLastDataByte,
+
+            LastRegisterByte,
+            RepeatedStart,
+            RepeatedStartAckAddr,
+            ReceiveData,
+        };
+
+        enum class Selection
+        {
+            Bus1 = 0,
+            Bus2 = 1,
+            Bus3 = 2
+        };
+
+        enum class InterruptType
+        {
+            Event,
+            Error
+        };
+
+        enum class DutyCycle
+        {
+            Dc_2,
+            Dc_16_9
+
+        };
 
         I2C_TypeDef* getInstance();
 
@@ -98,9 +95,9 @@ class I2cBus
          */
         bool checkAddressValidity(uint16_t address, bool addressing7bit);
 
-        I2cBusSelection getBusNumber();
+        Selection getBusNumber();
 
-        I2cBusStatus getStatus();
+        State getState();
 
         uint32_t getCurrentIndex();
 
@@ -120,13 +117,13 @@ class I2cBus
 
         I2C_TypeDef* instance = nullptr;
 
-        I2cBusSelection bus;
+        Selection bus;
 
         bool fastMode;
 
         std::string name;
 
-        I2cBusStatus status = I2C_BUS_IDLE;
+        State state = State::Idle;
 
         Timer* timer;
 
@@ -134,9 +131,11 @@ class I2cBus
 
         uint32_t currentIndex;
 
-        static void handleInterrupt(I2cBusSelection bus, I2cInterruptType type);
+        static void handleInterrupt(Selection bus, InterruptType type);
 
         static void timerCallback(void* argument);
+
+        static uint16_t getBusDriverNumber(Selection bus);
 
         uint32_t verifyTimer();
 
@@ -151,7 +150,7 @@ class I2cBus
          */
         void initInstance(const Config& config);
 
-        void registerDriver(I2cBusSelection bus);
+        void registerDriver(Selection bus);
 
         void initGpio();
         void deinitGpio();

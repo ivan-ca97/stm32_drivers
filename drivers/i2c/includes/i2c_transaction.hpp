@@ -11,12 +11,21 @@ class I2cTransaction
     public:
         class Builder;
 
-        typedef enum
+        enum Direction
         {
             RX,
             TX
-        }
-        Direction;
+        };
+
+        enum State
+        {
+            IDLE,
+            STARTING,
+            SENDING_REGISTER,
+            EXCHANGING_DATA,
+            FINISHED,
+            ERROR,
+        };
 
         uint16_t getAddress();
 
@@ -36,6 +45,10 @@ class I2cTransaction
 
         uint8_t getRegisterLengthBytes();
 
+        State getState();
+
+        void setState(State state);
+
         bool isTx();
 
         bool isRx();
@@ -47,8 +60,9 @@ class I2cTransaction
         void errorCallback();
 
     protected:
-        Direction direction;
         I2cDevice* device;
+        Direction direction;
+        State state;
 
         uint8_t* data;
         uint16_t dataBytes;

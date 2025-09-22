@@ -1,6 +1,6 @@
 #include "i2c_bus_builder.hpp"
 
-I2cBus::Builder& I2cBus::Builder::withBusSelection(I2cBusSelection bus)
+I2cBus::Builder& I2cBus::Builder::withBusSelection(Selection bus)
 {
     config.bus = bus;
     return *this;
@@ -33,7 +33,7 @@ I2cBus::Builder& I2cBus::Builder::setOwnAddress2(uint16_t ownAddress2)
 
 I2cBus::Builder& I2cBus::Builder::setDutyCycle16_9()
 {
-    config.dutyCycle = I2C_DUTY_CYCLE_16_9;
+    config.dutyCycle = DutyCycle::Dc_16_9;
     return *this;
 }
 
