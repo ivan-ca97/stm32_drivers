@@ -42,9 +42,12 @@ void I2cBus::prepareMasterRx(uint8_t remainingBytes)
 void I2cBus::finishCurrentTransaction(bool postCallback)
 {
     if(postCallback)
+    {
         currentTransaction->postCallback();
+        currentTransaction->setState(I2cTransaction::FINISHED);
+    }
     queue->dequeue();
-    status = I2C_BUS_IDLE;
+    state = State::Idle;
     sendNextTransaction();
 }
 
@@ -53,7 +56,7 @@ void I2cBus::masterStateStartAttemp()
     bool readBit = currentTransaction->isRx() && !currentTransaction->hasRegister();
     bool sentAddress = sendSlaveAddress(readBit);
     if(sentAddress)
-        status = I2C_BUS_SEND_SLAVE_ADDRESS;
+        state = State::SendSlaveAddress;
     return;
 }
 
@@ -63,13 +66,19 @@ void I2cBus::masterStateSendSlaveAddress()
         return;
 
     if(currentTransaction->hasRegister())
-        status = I2C_BUS_SEND_REGISTER;
+    {
+        state = State::SendRegister;
+        currentTransaction->setState(I2cTransaction::SENDING_REGISTER);
+    }
     else if(currentTransaction->isRx())
-        status = I2C_BUS_SEND_DATA;
+    {
+        state = State::SendData;
+        currentTransaction->setState(I2cTransaction::EXCHANGING_DATA);
+    }
     else
     {
         prepareMasterRx(currentTransaction->getDataLengthBytes());
-        status = I2C_BUS_RECEIVE_DATA;
+        state = State::ReceiveData;
     }
 
     LL_I2C_ClearFlag_ADDR(instance);
@@ -88,15 +97,16 @@ void I2cBus::masterStateSendRegister()
     if(currentIndex < currentTransaction->getRegisterLengthBytes())
         return;
 
+    currentTransaction->setState(I2cTransaction::EXCHANGING_DATA);
     if(currentTransaction->isRx())
     {
         LL_I2C_DisableIT_BUF(instance);
         LL_I2C_GenerateStartCondition(instance);
-        status = I2C_BUS_LAST_REGISTER_BYTE;
+        state = State::LastRegisterByte;
     }
 
     if(currentTransaction->isTx())
-        status = I2C_BUS_SEND_DATA;
+        state = State::SendData;
 
     currentIndex = 0;
 }
@@ -111,7 +121,7 @@ void I2cBus::masterStateSendData()
     if(currentIndex >= currentTransaction->getDataLengthBytes())
     {
         LL_I2C_DisableIT_BUF(instance);
-        this->status = I2C_BUS_SEND_LAST_DATA_BYTE;
+        state = State::SendLastDataByte;
     }
 }
 
@@ -130,7 +140,7 @@ void I2cBus::masterStateSendLastRegisterByte()
         return;
 
     LL_I2C_GenerateStartCondition(instance);
-    status = I2C_BUS_REPEATED_START;
+    state = State::RepeatedStart;
 }
 
 void I2cBus::masterStateRepeatedStart()
@@ -138,7 +148,7 @@ void I2cBus::masterStateRepeatedStart()
     bool readBit = currentTransaction->isRx();
     bool sentAddress = sendSlaveAddress(readBit);
     if(sentAddress)
-        this->status = I2C_BUS_REPEATED_START_ACK_ADDR;
+        state = State::RepeatedStartAckAddr;
 }
 
 void I2cBus::masterStateRepeatedStartAckAddr()
@@ -149,9 +159,9 @@ void I2cBus::masterStateRepeatedStartAckAddr()
     prepareMasterRx(currentTransaction->getDataLengthBytes());
     LL_I2C_ClearFlag_ADDR(instance);
     LL_I2C_EnableIT_BUF(instance);
-    this->currentIndex = 0;
+    currentIndex = 0;
 
-    this->status = I2C_BUS_RECEIVE_DATA;
+    state = State::ReceiveData;
 }
 
 void I2cBus::masterStateReceiveData()
@@ -175,70 +185,70 @@ void I2cBus::eventSlaveCallback()
         LL_I2C_ReadReg(instance, SR1);
         uint32_t sr2 = LL_I2C_ReadReg(instance, SR2);
         if(sr2 & I2C_SR2_TRA)
-            status = I2C_BUS_SLAVE_TRANSMIT;
+            state = State::SlaveTransmit;
         else
-            status = I2C_BUS_SLAVE_RECEIVE;
+            state = State::SlaveReceive;
 
         LL_I2C_EnableIT_BUF(instance);
-        slave->onAddressMatch();
+        slave->onAddressMatch(sr2 & I2C_SR2_TRA ? I2cSlave::Direction::TX : I2cSlave::Direction::RX);
     }
 
-    if(status == I2C_BUS_SLAVE_TRANSMIT && LL_I2C_IsActiveFlag_TXE(instance))
+    if(state == State::SlaveTransmit && LL_I2C_IsActiveFlag_TXE(instance))
         LL_I2C_TransmitData8(instance, slave->onReadByte());
 
-    while(status == I2C_BUS_SLAVE_RECEIVE && LL_I2C_IsActiveFlag_RXNE(instance))
+    while(state == State::SlaveReceive && LL_I2C_IsActiveFlag_RXNE(instance))
         slave->onWriteByte(LL_I2C_ReceiveData8(instance));
 
     if(LL_I2C_IsActiveFlag_STOP(instance))
     {
-        LL_I2C_DisableIT_BUF(instance);
         LL_I2C_ClearFlag_STOP(instance);
-        slave->onStop();
-        status = I2C_BUS_IDLE;
+        LL_I2C_DisableIT_BUF(instance);
+        slave->onEndTransaction();
+        state = State::Idle;
     }
 }
 
 void I2cBus::eventMasterCallback()
 {
-    switch(this->status)
+    switch(state)
     {
-        case I2C_BUS_IDLE:
+        case State::Idle:
             // Slave behaviour only
             break;
 
-        case I2C_BUS_START_ATTEMPT:
+        case State::StartAttempt:
             masterStateStartAttemp();
             break;
 
-        case I2C_BUS_SEND_SLAVE_ADDRESS:
+        case State::SendSlaveAddress:
             masterStateSendSlaveAddress();
             break;
 
-        case I2C_BUS_SEND_REGISTER:
+        case State::SendRegister:
             masterStateSendRegister();
             break;
 
-        case I2C_BUS_SEND_DATA:
+        case State::SendData:
             masterStateSendData();
             break;
 
-        case I2C_BUS_SEND_LAST_DATA_BYTE:
+        case State::SendLastDataByte:
             masterStateSendLastDataByte();
             break;
 
-        case I2C_BUS_LAST_REGISTER_BYTE:
+        case State::LastRegisterByte:
             masterStateSendLastRegisterByte();
             break;
 
-        case I2C_BUS_REPEATED_START:
+        case State::RepeatedStart:
             masterStateRepeatedStart();
             break;
 
-        case I2C_BUS_REPEATED_START_ACK_ADDR:
+        case State::RepeatedStartAckAddr:
             masterStateRepeatedStartAckAddr();
             break;
 
-        case I2C_BUS_RECEIVE_DATA:
+        case State::ReceiveData:
             masterStateReceiveData();
             break;
 
@@ -250,7 +260,17 @@ void I2cBus::eventMasterCallback()
 void I2cBus::errorCallback()
 {
     if (LL_I2C_IsActiveFlag_AF(instance))
+    {
         LL_I2C_ClearFlag_AF(instance);
+
+        // When sending data as a slave, transactions end with AF.
+        if(state == State::SlaveTransmit)
+        {
+            LL_I2C_DisableIT_BUF(instance);
+            slave->onEndTransaction();
+            state = State::Idle;
+        }
+    }
 
     if (LL_I2C_IsActiveFlag_ARLO(instance))
         LL_I2C_ClearFlag_ARLO(instance);
@@ -267,6 +287,7 @@ void I2cBus::errorCallback()
     if(!currentTransaction)
         return;
 
+    currentTransaction->setState(I2cTransaction::ERROR);
     currentTransaction->errorCallback();
     finishCurrentTransaction(false);
     sendNextTransaction();

@@ -74,6 +74,16 @@ uint8_t I2cTransaction::getRegisterLengthBytes()
     return deviceRegisterBytes;
 }
 
+void I2cTransaction::setState(State state)
+{
+    state = state;
+}
+
+I2cTransaction::State I2cTransaction::getState()
+{
+    return state;
+}
+
 bool I2cTransaction::isTx()
 {
     return direction == TX;

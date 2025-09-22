@@ -3,11 +3,11 @@
 
 struct I2cBus::Config
 {
-    I2cBusSelection bus;
+    Selection bus;
     std::string name;
     uint32_t clockSpeed;
     bool addressing7Bit = true;
-    I2cDutyCycle dutyCycle = I2C_DUTY_CYCLE_2;
+    DutyCycle dutyCycle = DutyCycle::Dc_2;
     uint16_t ownAddress1 = 0;
     uint16_t ownAddress2 = 0;
     bool clockStretching = true;
@@ -30,7 +30,7 @@ class I2cBus::Builder
 
         Config buildConfig();
 
-        Builder& withBusSelection(I2cBusSelection bus);
+        Builder& withBusSelection(Selection bus);
 
         Builder& setBusSpeed(uint32_t clockSpeed);
 
