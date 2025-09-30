@@ -21,8 +21,15 @@ class I2cSlave
 
         virtual void onAddressMatch(Direction direction) = 0;
 
+        virtual void onError() = 0;
+
     protected:
-        virtual void setBus(I2cBus& bus) = 0;
+        I2cBus* bus;
+
+        void setBus(I2cBus& bus)
+        {
+            this->bus = &bus;
+        }
 
     friend class I2cBus;
 };
