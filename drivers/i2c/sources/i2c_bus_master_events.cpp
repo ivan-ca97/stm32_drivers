@@ -259,6 +259,7 @@ void I2cBus::eventMasterCallback()
 
 void I2cBus::errorCallback()
 {
+    bool slaveError = true;
     if (LL_I2C_IsActiveFlag_AF(instance))
     {
         LL_I2C_ClearFlag_AF(instance);
@@ -266,6 +267,7 @@ void I2cBus::errorCallback()
         // When sending data as a slave, transactions end with AF.
         if(state == State::SlaveTransmit)
         {
+            slaveError = false;
             LL_I2C_DisableIT_BUF(instance);
             slave->onEndTransaction();
             state = State::Idle;
@@ -283,6 +285,9 @@ void I2cBus::errorCallback()
         LL_I2C_ReceiveData8(instance);
         LL_I2C_ClearFlag_OVR(instance);
     }
+
+    if(slaveError)
+        slave->onError();
 
     if(!currentTransaction)
         return;
