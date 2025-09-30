@@ -9,6 +9,10 @@ add_library(authentication
     ${CMAKE_CURRENT_SOURCE_DIR}/sources/user.cpp
 )
 
+target_compile_options(authentication PUBLIC
+    $<$<COMPILE_LANGUAGE:CXX>:-fexceptions>
+)
+
 target_include_directories(authentication PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/includes
 )
