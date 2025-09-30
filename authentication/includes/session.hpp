@@ -18,6 +18,8 @@ class Session
         void update(uint32_t currentTime);
         void expire();
 
+        bool operator==(const Session& other) const;
+
     protected:
         const User* user = nullptr;
         TokenType token = 0;

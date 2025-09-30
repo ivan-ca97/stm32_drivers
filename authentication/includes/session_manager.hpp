@@ -14,13 +14,15 @@ class Clock
 class SessionManager
 {
     public:
-        SessionManager(std::span<Session*> sessionsStorage, const Clock* clock);
+        SessionManager(std::span<Session*> sessionsStorage, const Clock& clock);
 
         const Session* validate(TokenType token);
 
         const Session* getSession(const User& user) const;
 
         const Session* createSession(const User& user);
+
+        void expireSession(const Session& user);
 
         void updateSessions();
 
@@ -46,7 +48,7 @@ class StaticSessionManager : public SessionManager
         std::array<Session*, SessionAmount> sessionPointers;
 
     public:
-        StaticSessionManager(const Clock* clock)
+        StaticSessionManager(const Clock& clock)
             : SessionManager(sessionPointers, clock)
         {
             for (size_t i = 0; i < SessionAmount; i++)

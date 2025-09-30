@@ -12,8 +12,9 @@ class UserManager
         User* createUser(Permission newPermission, std::string_view newUsername, std::string_view newPassword, std::string_view newName = "");
         const User* getUser(std::string_view username) const;
         const User* getUser(uint16_t id) const;
-        void updateUser(uint16_t id, User& updatedUser);
+        void updateUser(User& updatedUser);
         void deleteUser(std::string_view username);
+        void deleteUser(uint16_t id);
         void deleteUser(const User& user);
 
         uint16_t getMaxUsers();
@@ -29,6 +30,7 @@ class UserManager
         User* getUserByUsername(std::string_view username) const;
         User* getUserById(uint16_t id) const;
         User* getFreeUser();
+        void checkRepeatedUsername(std::string_view username);
 };
 
 template <size_t UsersAmount, size_t UsernameLength, size_t PasswordLength, size_t NameLength>

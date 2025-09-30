@@ -56,6 +56,17 @@ Session* SessionManager::getSessionByUser(const User& user) const
     return *it;
 }
 
+void SessionManager::expireSession(const Session& sessionToExpire)
+{
+    auto findLambda = [&](const Session* session) {return *session == sessionToExpire;};
+    auto it = std::find_if(sessions.begin(), sessions.end(), findLambda);
+
+    if(it == sessions.end())
+        return;
+
+    (*it)->expire();
+}
+
 void SessionManager::updateSessions()
 {
     auto time = clock->getTime();
@@ -68,6 +79,6 @@ bool SessionManager::hasSession(const User& user) const
     return getSession(user) != nullptr;
 }
 
-SessionManager::SessionManager(std::span<Session*> sessionsStorage, const Clock* clock)
-    : sessions(sessionsStorage)
+SessionManager::SessionManager(std::span<Session*> sessionsStorage, const Clock& clock)
+    : sessions(sessionsStorage), clock(&clock)
 {}

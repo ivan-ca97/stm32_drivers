@@ -9,6 +9,8 @@ User* UserManager::createUser(Permission newPermission, std::string_view newUser
     if(!newUser)
         throw std::logic_error("Users buffer full.");
 
+    checkRepeatedUsername(newUsername);
+
     newUser->setUsername(newUsername);
     newUser->setPassword(newPassword);
     newUser->setName(newName);
@@ -52,12 +54,16 @@ User* UserManager::getUserById(uint16_t id) const
     return *it;
 }
 
-void UserManager::updateUser(uint16_t id, User& updatedUser)
+void UserManager::updateUser(User& updatedUser)
 {
     if(updatedUser.getPassword().empty() || updatedUser.getUsername().empty())
         throw std::logic_error("Empty password or username trying to update user.");
 
-    User* user = getUserById(id);
+    User* user = getUserById(updatedUser.getId());
+
+    if(user->getUsername() != updatedUser.getUsername())
+        checkRepeatedUsername(updatedUser.getUsername());
+
     user->setName(updatedUser.getName());
     user->setPassword(updatedUser.getPassword());
     user->setUsername(updatedUser.getUsername());
@@ -71,6 +77,17 @@ void UserManager::deleteUser(std::string_view username)
         throw std::logic_error("User not found.");
 
     deleteUser(*user);
+}
+
+void UserManager::deleteUser(uint16_t id)
+{
+    auto storedUser = getUserById(id);
+
+    if(!storedUser)
+        throw std::logic_error("User not found.");
+
+    storedUser->reset();
+    loadedUsers--;
 }
 
 void UserManager::deleteUser(const User& user)
@@ -98,6 +115,12 @@ User* UserManager::getFreeUser()
         return nullptr;
 
     return *it;
+}
+
+void UserManager::checkRepeatedUsername(std::string_view username)
+{
+    if(getUserByUsername(username))
+        throw std::logic_error("User already exists.");
 }
 
 UserManager::UserManager(std::span<User*> usersStorage)

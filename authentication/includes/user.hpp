@@ -10,7 +10,7 @@ enum class Permission
     Superuser,
     Maintenance,
     Observer,
-    None
+    None,
 };
 
 class User
@@ -18,13 +18,14 @@ class User
     public:
         User(std::span<char> usernameStorage, std::span<char> passwordStorage, std::span<char> nameStorage);
 
-        const bool authenticate(std::string_view password) const;
+        bool authenticate(std::string_view password) const;
 
         const std::string_view getUsername() const;
         const std::string_view getPassword() const;
         const std::string_view getName() const;
         uint16_t getId() const;
         Permission getPermission() const;
+        bool hasPermission(Permission permission) const;
         bool isValid() const;
 
         void setUsername(std::string_view newUsername);

@@ -12,7 +12,7 @@ User::User(std::span<char> usernameStorage, std::span<char> passwordStorage, std
     std::fill(name.begin(), name.end(), '\0');
 }
 
-const bool User::authenticate(std::string_view password) const
+bool User::authenticate(std::string_view password) const
 {
     return password == this->password.data();
 }
@@ -40,6 +40,56 @@ uint16_t User::getId() const
 Permission User::getPermission() const
 {
     return permission;
+}
+
+bool User::hasPermission(Permission queryPermission) const
+{
+    switch(permission)
+    {
+        case Permission::Superuser:
+            return true;
+
+        case Permission::Maintenance:
+            switch(queryPermission)
+            {
+                case Permission::None:
+                case Permission::Observer:
+                case Permission::Maintenance:
+                    return true;
+
+                case Permission::Superuser:
+                    return false;
+            }
+            break;
+
+        case Permission::Observer:
+            switch(queryPermission)
+            {
+                case Permission::None:
+                case Permission::Observer:
+                    return true;
+
+                case Permission::Superuser:
+                case Permission::Maintenance:
+                    return false;
+            }
+            break;
+
+        case Permission::None:
+            switch(queryPermission)
+            {
+                case Permission::None:
+                    return true;
+
+                case Permission::Superuser:
+                case Permission::Maintenance:
+                case Permission::Observer:
+                    return false;
+            }
+            break;
+    }
+
+    return false;
 }
 
 bool User::isValid() const

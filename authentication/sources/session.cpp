@@ -44,3 +44,11 @@ void Session::expire()
     token = 0;
     expireTime = 0;
 }
+
+bool Session::operator==(const Session& other) const
+{
+    return
+        user == other.user &&
+        token == other.token &&
+        expireTime == other.expireTime;
+}
