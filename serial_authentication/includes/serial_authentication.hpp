@@ -6,6 +6,7 @@ class SerialAuthentication
 {
     public:
         class Builder;
+        struct Configuration;
 
         enum class Operation
         {
@@ -30,7 +31,7 @@ class SerialAuthentication
 
         uint8_t authenticateNextByte(uint8_t byte);
 
-        SerialAuthentication(Authentication& authentication, std::span<char> usernameBuffer, std::span<char> nameBuffer, std::span<char> passwordBuffer, std::span<char> password2Buffer);
+        SerialAuthentication(const Configuration& configuration);
 
     protected:
         enum class State

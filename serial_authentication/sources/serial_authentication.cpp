@@ -1,9 +1,14 @@
 #include "serial_authentication.hpp"
+#include "serial_authentication_builder.hpp"
 
 #include <stdexcept>
 
-SerialAuthentication::SerialAuthentication(Authentication& authentication, std::span<char> usernameBuffer, std::span<char> nameBuffer, std::span<char> passwordBuffer, std::span<char> password2Buffer)
-    : authentication(&authentication), currentUsername(usernameBuffer), currentName(nameBuffer), currentPassword(passwordBuffer), currentPassword2(password2Buffer)
+SerialAuthentication::SerialAuthentication(const Configuration& configuration) :
+    authentication(configuration.authentication),
+    currentUsername(configuration.usernameBuffer),
+    currentPassword(configuration.passwordBuffer),
+    currentPassword2(configuration.password2Buffer),
+    currentName(configuration.nameBuffer)
 {
 
 }
