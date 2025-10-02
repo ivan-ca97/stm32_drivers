@@ -2,7 +2,7 @@
 
 void SerialAuthentication::readingToken(uint8_t byte, State nextState, Permission permissionNeeded)
 {
-    bool done = writeTokenByte(byte);
+    bool done = setTokenByte(byte);
     if(!done)
         return;
 
@@ -26,7 +26,7 @@ void SerialAuthentication::readingToken(uint8_t byte, State nextState, Permissio
 
 bool SerialAuthentication::readingUser(uint8_t byte, State nextState)
 {
-    bool done = writeUsernameByte(byte);
+    bool done = setUsernameByte(byte);
     if(!done)
         return false;
 
@@ -49,7 +49,7 @@ bool SerialAuthentication::readingUser(uint8_t byte, State nextState)
 
 bool SerialAuthentication::readingPassword(uint8_t byte, State nextState)
 {
-    bool done = writePasswordByte(byte);
+    bool done = setPasswordByte(byte);
     if(!done)
         return false;
 
@@ -59,7 +59,7 @@ bool SerialAuthentication::readingPassword(uint8_t byte, State nextState)
 
 bool SerialAuthentication::readingPassword2(uint8_t byte, State nextState)
 {
-    bool done = writePassword2Byte(byte);
+    bool done = setPassword2Byte(byte);
     if(!done)
         return false;
 
@@ -69,7 +69,7 @@ bool SerialAuthentication::readingPassword2(uint8_t byte, State nextState)
 
 bool SerialAuthentication::readingName(uint8_t byte, State nextState)
 {
-    bool done = writeNameByte(byte);
+    bool done = setNameByte(byte);
     if(!done)
         return false;
 
@@ -79,7 +79,7 @@ bool SerialAuthentication::readingName(uint8_t byte, State nextState)
 
 bool SerialAuthentication::readingUserId(uint8_t byte, State nextState)
 {
-    bool done = writeIdByte(byte);
+    bool done = setIdByte(byte);
     if(!done)
         return false;
 
@@ -89,7 +89,7 @@ bool SerialAuthentication::readingUserId(uint8_t byte, State nextState)
 
 bool SerialAuthentication::readingPermission(uint8_t byte, State nextState)
 {
-    bool done = writePermissionByte(byte);
+    bool done = setPermissionByte(byte);
     if(!done)
         return false;
 
@@ -118,7 +118,7 @@ void SerialAuthentication::logOut(uint8_t byte)
     switch(state)
     {
         case State::ReadingToken:
-            if(!writeTokenByte(byte))
+            if(!setTokenByte(byte))
                 break;
 
             authentication->logOut(currentToken);
@@ -139,7 +139,7 @@ void SerialAuthentication::logIn(uint8_t byte)
             break;
 
         case State::ReadingPassword:
-            if(!readingPassword(byte, State::TokenReady))
+            if(!readingPassword(byte, State::SendingToken))
                 break;
 
             try

@@ -4,7 +4,8 @@ project(serial_authentication LANGUAGES CXX)
 add_library(serial_authentication
     ${CMAKE_CURRENT_SOURCE_DIR}/sources/serial_authentication_builder.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/sources/serial_authentication.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/sources/serial_operations.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/sources/serial_read_operations.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/sources/serial_write_operations.cpp
 )
 
 target_include_directories(serial_authentication PUBLIC

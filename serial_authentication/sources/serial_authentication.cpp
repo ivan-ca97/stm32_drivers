@@ -2,6 +2,7 @@
 #include "serial_authentication_builder.hpp"
 
 #include <stdexcept>
+#include <utility>
 
 SerialAuthentication::SerialAuthentication(const Configuration& configuration) :
     authentication(configuration.authentication),
@@ -13,7 +14,7 @@ SerialAuthentication::SerialAuthentication(const Configuration& configuration) :
 
 }
 
-uint8_t SerialAuthentication::authenticateNextByte(uint8_t byte)
+void SerialAuthentication::authenticateNextByte(uint8_t byte)
 {
     State previousState = state;
     switch(operation)
@@ -58,18 +59,69 @@ uint8_t SerialAuthentication::authenticateNextByte(uint8_t byte)
             break;
     }
 
+    if(error != Error::None)
+        state = State::Error;
+
+    if(previousState != state)
+        currentByteIndex = 0;
+}
+
+uint8_t SerialAuthentication::getNextByte()
+{
+    uint8_t byte = 0;
+    State previousState = state;
+
+    // Error handling, common for all operations.
+    if(state == State::Error)
+        if(writesUntilErrorCode-- == 0)
+            state = State::SendingErrorCode;
+
+    if(state == State::SendingErrorCode)
+    {
+        state = State::None;
+        return std::to_underlying(error);
+    }
+
+    switch(operation)
+    {
+        case Operation::Idle:
+            break;
+
+        case Operation::LogIn:
+            break;
+        case Operation::LogOut:
+            break;
+        case Operation::CreateUser:
+            break;
+        case Operation::DeleteUser:
+            break;
+
+        case Operation::ModifyOwnUsername:
+            break;
+        case Operation::ModifyOwnPassword:
+            break;
+        case Operation::ModifyOwnName:
+            break;
+
+        case Operation::ModifyUsername:
+            break;
+        case Operation::ModifyPassword:
+            break;
+        case Operation::ModifyName:
+            break;
+        case Operation::ModifyPermission:
+            break;
+    }
+
+
+    if(error != Error::None)
+        state = State::Error;
+
     if(previousState != state)
         currentByteIndex = 0;
 
-    if(error != Error::None)
-    {
-        state = State::Error;
-        currentByteIndex = 0;
-    }
-
-    return 0;
+    return byte;
 }
-
 
 void SerialAuthentication::setOperation(Operation newOperation)
 {
@@ -127,7 +179,7 @@ void SerialAuthentication::setOperation(Operation newOperation)
     }
 }
 
-bool SerialAuthentication::writeUsernameByte(uint8_t byte)
+bool SerialAuthentication::setUsernameByte(uint8_t byte)
 {
     if(currentByteIndex >= currentUsername.size())
     {
@@ -142,7 +194,7 @@ bool SerialAuthentication::writeUsernameByte(uint8_t byte)
     return false;
 }
 
-bool SerialAuthentication::writePasswordByte(uint8_t byte)
+bool SerialAuthentication::setPasswordByte(uint8_t byte)
 {
     if(currentByteIndex >= currentPassword.size())
     {
@@ -157,7 +209,7 @@ bool SerialAuthentication::writePasswordByte(uint8_t byte)
     return false;
 }
 
-bool SerialAuthentication::writePassword2Byte(uint8_t byte)
+bool SerialAuthentication::setPassword2Byte(uint8_t byte)
 {
     if(currentByteIndex >= currentPassword2.size())
     {
@@ -172,7 +224,7 @@ bool SerialAuthentication::writePassword2Byte(uint8_t byte)
     return false;
 }
 
-bool SerialAuthentication::writeNameByte(uint8_t byte)
+bool SerialAuthentication::setNameByte(uint8_t byte)
 {
     if(currentByteIndex >= currentName.size())
     {
@@ -187,15 +239,7 @@ bool SerialAuthentication::writeNameByte(uint8_t byte)
     return false;
 }
 
-bool SerialAuthentication::writeTokenByte(uint8_t byte)
-{
-    if (currentByteIndex < sizeof(currentToken))
-        reinterpret_cast<uint8_t*>(&currentToken)[currentByteIndex++] = byte;
-
-    return currentByteIndex >= sizeof(currentToken);
-}
-
-bool SerialAuthentication::writeIdByte(uint8_t byte)
+bool SerialAuthentication::setIdByte(uint8_t byte)
 {
     if(currentByteIndex < sizeof(currentId))
         reinterpret_cast<uint8_t*>(&currentId)[currentByteIndex++] = byte;
@@ -203,7 +247,7 @@ bool SerialAuthentication::writeIdByte(uint8_t byte)
     return currentByteIndex >= sizeof(currentId);
 }
 
-bool SerialAuthentication::writePermissionByte(uint8_t byte)
+bool SerialAuthentication::setPermissionByte(uint8_t byte)
 {
     if(currentByteIndex < sizeof(currentPermissionId))
         reinterpret_cast<uint8_t*>(&currentPermissionId)[currentByteIndex++] = byte;
@@ -211,15 +255,18 @@ bool SerialAuthentication::writePermissionByte(uint8_t byte)
     return currentByteIndex >= sizeof(currentPermissionId);
 }
 
-uint8_t SerialAuthentication::getNextTokenByte()
+bool SerialAuthentication::setTokenByte(uint8_t byte)
 {
-    if(state != State::TokenReady)
-        throw std::logic_error("Token not ready.");
+    if(currentByteIndex < sizeof(currentToken))
+        reinterpret_cast<uint8_t*>(&currentToken)[currentByteIndex++] = byte;
 
-    uint8_t byte = reinterpret_cast<uint8_t*>(&currentToken)[currentByteIndex++];
+    return currentByteIndex >= sizeof(currentToken);
+}
 
-    if(currentByteIndex >= sizeof(TokenType))
-        state = State::None;
+bool SerialAuthentication::getTokenByte(uint8_t* byte)
+{
+    if(currentByteIndex < sizeof(currentToken))
+        *byte = reinterpret_cast<uint8_t*>(&currentToken)[currentByteIndex++];
 
-    return byte;
+    return currentByteIndex >= sizeof(currentToken);
 }
