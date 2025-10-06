@@ -25,7 +25,7 @@ class Authentication
         UserManager* getUserManager();
         SessionManager* getSessionManager();
 
-        void createUser(Session::TokenType token, Permission newPermission, std::string_view newUsername, std::string_view newPassword, std::string_view newName);
+        User::IdType createUser(Session::TokenType token, Permission newPermission, std::string_view newUsername, std::string_view newPassword, std::string_view newName);
 
         void deleteUser(Session::TokenType token, const User& user);
         void deleteUser(Session::TokenType token, User::IdType userId);

@@ -57,12 +57,13 @@ const Session* Authentication::validateWithPermission(Session::TokenType token, 
     return session;
 }
 
-void Authentication::createUser(Session::TokenType token, Permission newPermission, std::string_view newUsername, std::string_view newPassword, std::string_view newName)
+User::IdType Authentication::createUser(Session::TokenType token, Permission newPermission, std::string_view newUsername, std::string_view newPassword, std::string_view newName)
 {
     if(!validateWithPermission(token, Permission::Superuser))
         throw std::logic_error("Invalid token or user doesn't have necessary permissions.");
 
-    userManager->createUser(newPermission, newUsername, newPassword, newName);
+    auto newUser = userManager->createUser(newPermission, newUsername, newPassword, newName);
+    return newUser->getId();
 }
 
 void Authentication::deleteUser(Session::TokenType token, const User& user)

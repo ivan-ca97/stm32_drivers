@@ -51,6 +51,7 @@ class SerialAuthentication
             ReadingPermission,
 
             SendingToken,
+            SendingId,
 
             SendingErrorCode,
 
@@ -66,10 +67,11 @@ class SerialAuthentication
             NameOverflow,
 
             TokenInvalid,
+            PermissionIdInvalid,
             UserNoPermission,
             AuthenticationError,
             UserIdDoesNotExist,
-            RepeatedUsername,
+            UsernameAlreadyExists,
 
             ByteReadNotExpected,
 
@@ -118,7 +120,7 @@ class SerialAuthentication
         bool getPermissionByte(uint8_t* byte);
         bool getTokenByte(uint8_t* byte);
 
-        void readingToken(uint8_t byte, State nextState, Permission permissionNeeded);
+        void readingToken(uint8_t byte, State nextState, Permission permissionNeeded = Permission::None);
         bool readingUser(uint8_t byte, State nextState);
         bool readingPassword(uint8_t byte, State nextState);
         bool readingPassword2(uint8_t byte, State nextState);

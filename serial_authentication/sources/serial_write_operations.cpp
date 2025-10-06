@@ -17,3 +17,21 @@ uint8_t SerialAuthentication::logIn()
 
     return byte;
 }
+
+uint8_t SerialAuthentication::createUser()
+{
+    uint8_t byte = 0;
+    switch(state)
+    {
+        case State::SendingId:
+            if(!getIdByte(&byte))
+                break;
+            state = State::SendingErrorCode;
+            break;
+
+        default:
+            break;
+    }
+
+    return byte;
+}

@@ -37,7 +37,7 @@ bool SerialAuthentication::readingUser(uint8_t byte, State nextState)
         case Operation::ModifyUsername:
         case Operation::CreateUser:
             if(authentication->getUserManager()->getUser(currentUsername.data()))
-                error = Error::RepeatedUsername;
+                error = Error::UsernameAlreadyExists;
             break;
         default:
             break;
@@ -93,9 +93,11 @@ bool SerialAuthentication::readingPermission(uint8_t byte, State nextState)
     if(!done)
         return false;
 
-    currentPermission = Permission::None;
     switch(currentPermissionId)
     {
+        case 0:
+            currentPermission = Permission::None;
+            break;
         case 1:
             currentPermission = Permission::Observer;
             break;
@@ -106,6 +108,7 @@ bool SerialAuthentication::readingPermission(uint8_t byte, State nextState)
             currentPermission = Permission::Superuser;
             break;
         default:
+            error = Error::PermissionIdInvalid;
             break;
     }
 
@@ -128,7 +131,6 @@ void SerialAuthentication::logOut(uint8_t byte)
             catch(...)
             {
                 error = Error::TokenInvalid;
-                writesUntilErrorCode = 0;
             }
 
             state = State::SendingErrorCode;
@@ -159,7 +161,6 @@ void SerialAuthentication::logIn(uint8_t byte)
             catch(...)
             {
                 error = Error::AuthenticationError;
-                writesUntilErrorCode = sizeof(Session::TokenType);
             }
             break;
 
@@ -185,12 +186,12 @@ void SerialAuthentication::createUser(uint8_t byte)
             break;
 
         case State::ReadingPermission:
-            if(!readingPermission(byte, State::None))
+            if(!readingPermission(byte, State::SendingId))
                 break;
 
             try
             {
-                authentication->createUser(currentToken, currentPermission, currentUsername.data(), currentPassword.data(), "");
+                currentId = authentication->createUser(currentToken, currentPermission, currentUsername.data(), currentPassword.data(), "");
             }
             catch(...)
             {
@@ -236,7 +237,7 @@ void SerialAuthentication::modifyOwnUsername(uint8_t byte)
     switch(state)
     {
         case State::ReadingToken:
-            readingToken(byte, State::ReadingUser, Permission::None);
+            readingToken(byte, State::ReadingUser);
             break;
 
         case State::ReadingUser:
@@ -263,7 +264,7 @@ void SerialAuthentication::modifyOwnPassword(uint8_t byte)
     switch(state)
     {
         case State::ReadingToken:
-            readingToken(byte, State::ReadingPassword, Permission::None);
+            readingToken(byte, State::ReadingPassword);
             break;
 
         case State::ReadingPassword:
@@ -294,7 +295,7 @@ void SerialAuthentication::modifyOwnName(uint8_t byte)
     switch(state)
     {
         case State::ReadingToken:
-            readingToken(byte, State::ReadingName, Permission::None);
+            readingToken(byte, State::ReadingName);
             break;
 
         case State::ReadingName:

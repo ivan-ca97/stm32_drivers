@@ -94,6 +94,7 @@ uint8_t SerialAuthentication::getNextByte()
             // Error code only.
             break;
         case Operation::CreateUser:
+            byte = createUser();
             break;
         case Operation::DeleteUser:
             break;
@@ -136,14 +137,17 @@ void SerialAuthentication::setOperation(Operation newOperation)
             break;
 
         case Operation::LogIn:
+            writesUntilErrorCode = sizeof(Session::TokenType);
             state = State::ReadingUser;
             break;
 
         case Operation::LogOut:
+            writesUntilErrorCode = 0;
             state = State::ReadingToken;
             break;
 
         case Operation::CreateUser:
+            writesUntilErrorCode = sizeof(User::IdType);
             state = State::ReadingToken;
             break;
 
@@ -263,6 +267,14 @@ bool SerialAuthentication::setTokenByte(uint8_t byte)
         reinterpret_cast<uint8_t*>(&currentToken)[currentByteIndex++] = byte;
 
     return currentByteIndex >= sizeof(currentToken);
+}
+
+bool SerialAuthentication::getIdByte(uint8_t* byte)
+{
+    if(currentByteIndex < sizeof(currentId))
+        *byte = reinterpret_cast<uint8_t*>(&currentId)[currentByteIndex++];
+
+    return currentByteIndex >= sizeof(currentId);
 }
 
 bool SerialAuthentication::getTokenByte(uint8_t* byte)
