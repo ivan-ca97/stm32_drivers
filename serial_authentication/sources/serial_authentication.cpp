@@ -88,6 +88,7 @@ uint8_t SerialAuthentication::getNextByte()
             break;
 
         case Operation::LogIn:
+            byte = logIn();
             break;
         case Operation::LogOut:
             break;

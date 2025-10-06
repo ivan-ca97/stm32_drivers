@@ -150,6 +150,7 @@ void SerialAuthentication::logIn(uint8_t byte)
             catch(...)
             {
                 error = Error::AuthenticationError;
+                writesUntilErrorCode = sizeof(TokenType);
             }
             break;
 
