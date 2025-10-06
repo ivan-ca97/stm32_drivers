@@ -27,7 +27,7 @@ const User* UserManager::getUser(std::string_view username) const
     return getUserByUsername(username);
 }
 
-const User* UserManager::getUser(uint16_t id) const
+const User* UserManager::getUser(User::IdType id) const
 {
     return getUserById(id);
 }
@@ -43,7 +43,7 @@ User* UserManager::getUserByUsername(std::string_view username) const
     return *it;
 }
 
-User* UserManager::getUserById(uint16_t id) const
+User* UserManager::getUserById(User::IdType id) const
 {
     auto findLambda = [&](const User* user) {return user && user->getId() == id;};
     auto it = std::find_if(users.begin(), users.end(), findLambda);
@@ -79,7 +79,7 @@ void UserManager::deleteUser(std::string_view username)
     deleteUser(*user);
 }
 
-void UserManager::deleteUser(uint16_t id)
+void UserManager::deleteUser(User::IdType id)
 {
     auto storedUser = getUserById(id);
 
@@ -101,7 +101,7 @@ void UserManager::deleteUser(const User& user)
     loadedUsers--;
 }
 
-uint16_t UserManager::getMaxUsers()
+User::IdType UserManager::getMaxUsers()
 {
     return users.size();
 }

@@ -25,7 +25,7 @@ const Session* Authentication::authenticate(std::string_view username, std::stri
     return session;
 }
 
-const Session* Authentication::validate(TokenType token)
+const Session* Authentication::validate(Session::TokenType token)
 {
     return sessionManager->validate(token);
 }
@@ -45,7 +45,7 @@ SessionManager* Authentication::getSessionManager()
     return sessionManager;
 }
 
-const Session* Authentication::validateWithPermission(TokenType token, Permission permission)
+const Session* Authentication::validateWithPermission(Session::TokenType token, Permission permission)
 {
     const Session* session = sessionManager->validate(token);
     if(!session)
@@ -57,7 +57,7 @@ const Session* Authentication::validateWithPermission(TokenType token, Permissio
     return session;
 }
 
-void Authentication::createUser(TokenType token, Permission newPermission, std::string_view newUsername, std::string_view newPassword, std::string_view newName)
+void Authentication::createUser(Session::TokenType token, Permission newPermission, std::string_view newUsername, std::string_view newPassword, std::string_view newName)
 {
     if(!validateWithPermission(token, Permission::Superuser))
         throw std::logic_error("Invalid token or user doesn't have necessary permissions.");
@@ -65,7 +65,7 @@ void Authentication::createUser(TokenType token, Permission newPermission, std::
     userManager->createUser(newPermission, newUsername, newPassword, newName);
 }
 
-void Authentication::deleteUser(TokenType token, const User& user)
+void Authentication::deleteUser(Session::TokenType token, const User& user)
 {
     if(!validateWithPermission(token, Permission::Superuser))
         throw std::logic_error("Invalid token or user doesn't have necessary permissions.");
@@ -73,7 +73,7 @@ void Authentication::deleteUser(TokenType token, const User& user)
     userManager->deleteUser(user);
 }
 
-void Authentication::deleteUser(TokenType token, uint16_t userId)
+void Authentication::deleteUser(Session::TokenType token, User::IdType userId)
 {
     if(!validateWithPermission(token, Permission::Superuser))
         throw std::logic_error("Invalid token or user doesn't have necessary permissions.");
@@ -81,7 +81,7 @@ void Authentication::deleteUser(TokenType token, uint16_t userId)
     userManager->deleteUser(userId);
 }
 
-void Authentication::logOut(TokenType token)
+void Authentication::logOut(Session::TokenType token)
 {
     const Session* session = sessionManager->validate(token);
     if(!session)
@@ -90,7 +90,7 @@ void Authentication::logOut(TokenType token)
     sessionManager->expireSession(*session);
 }
 
-void Authentication::modifyOwnUsername(TokenType token, std::string_view newUsername)
+void Authentication::modifyOwnUsername(Session::TokenType token, std::string_view newUsername)
 {
     const Session* session = sessionManager->validate(token);
     if(!session)
@@ -102,7 +102,7 @@ void Authentication::modifyOwnUsername(TokenType token, std::string_view newUser
     userManager->updateUser(updatedUser);
 }
 
-void Authentication::modifyOwnPassword(TokenType token, std::string_view oldPassword, std::string_view newPassword)
+void Authentication::modifyOwnPassword(Session::TokenType token, std::string_view oldPassword, std::string_view newPassword)
 {
     const Session* session = sessionManager->validate(token);
     if(!session)
@@ -117,7 +117,7 @@ void Authentication::modifyOwnPassword(TokenType token, std::string_view oldPass
     userManager->updateUser(updatedUser);
 }
 
-void Authentication::modifyOwnName(TokenType token, std::string_view newName)
+void Authentication::modifyOwnName(Session::TokenType token, std::string_view newName)
 {
     const Session* session = sessionManager->validate(token);
     if(!session)
@@ -133,7 +133,7 @@ void Authentication::modifyOwnName(TokenType token, std::string_view newName)
 }
 
 
-void Authentication::modifyUsername(TokenType token, uint16_t id, std::string_view newUsername)
+void Authentication::modifyUsername(Session::TokenType token, User::IdType id, std::string_view newUsername)
 {
     if(!validateWithPermission(token, Permission::Superuser))
         throw std::logic_error("Invalid token or user doesn't have necessary permissions");
@@ -147,7 +147,7 @@ void Authentication::modifyUsername(TokenType token, uint16_t id, std::string_vi
     userManager->updateUser(updatedUser);
 }
 
-void Authentication::modifyPassword(TokenType token, uint16_t id, std::string_view newPassword)
+void Authentication::modifyPassword(Session::TokenType token, User::IdType id, std::string_view newPassword)
 {
     if(!validateWithPermission(token, Permission::Superuser))
         throw std::logic_error("Invalid token or user doesn't have necessary permissions");
@@ -161,7 +161,7 @@ void Authentication::modifyPassword(TokenType token, uint16_t id, std::string_vi
     userManager->updateUser(updatedUser);
 }
 
-void Authentication::modifyName(TokenType token, uint16_t id, std::string_view newName)
+void Authentication::modifyName(Session::TokenType token, User::IdType id, std::string_view newName)
 {
     if(!validateWithPermission(token, Permission::Superuser))
         throw std::logic_error("Invalid token or user doesn't have necessary permissions");
@@ -175,7 +175,7 @@ void Authentication::modifyName(TokenType token, uint16_t id, std::string_view n
     userManager->updateUser(updatedUser);
 }
 
-void Authentication::modifyPermission(TokenType token, uint16_t id, Permission newPermission)
+void Authentication::modifyPermission(Session::TokenType token, User::IdType id, Permission newPermission)
 {
     if(!validateWithPermission(token, Permission::Superuser))
         throw std::logic_error("Invalid token or user doesn't have necessary permissions");

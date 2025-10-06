@@ -1,1 +1,1 @@
-# stm32_reactor
+# Authentication with serial management for embedded systems.

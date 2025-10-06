@@ -3,7 +3,7 @@
 #include <stdexcept>
 #include <algorithm>
 
-const Session* SessionManager::validate(TokenType token)
+const Session* SessionManager::validate(Session::TokenType token)
 {
     auto findLambda = [&](const Session* session) {return session->getToken() == token;};
     auto it = std::find_if(sessions.begin(), sessions.end(), findLambda);

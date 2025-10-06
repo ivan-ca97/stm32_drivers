@@ -32,7 +32,7 @@ const std::string_view User::getName() const
     return getString(name);
 }
 
-uint16_t User::getId() const
+User::IdType User::getId() const
 {
     return id;
 }
@@ -112,7 +112,7 @@ void User::setName(std::string_view newName)
     setString(newName, name, "Name too long");
 }
 
-void User::setId(uint16_t newId)
+void User::setId(User::IdType newId)
 {
     id = newId;
 }

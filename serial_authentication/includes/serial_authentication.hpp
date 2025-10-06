@@ -81,8 +81,8 @@ class SerialAuthentication
         std::span<char> currentPassword;
         std::span<char> currentPassword2;
         std::span<char> currentName;
-        TokenType currentToken;
-        uint16_t currentId;
+        Session::TokenType currentToken;
+        User::IdType currentId;
         uint16_t currentPermissionId;
         Permission currentPermission;
         uint16_t currentByteIndex = 0;

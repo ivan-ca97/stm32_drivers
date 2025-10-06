@@ -22,7 +22,7 @@ const User* Session::getUser() const
     return user;
 }
 
-TokenType Session::getToken() const
+Session::TokenType Session::getToken() const
 {
     return token;
 }

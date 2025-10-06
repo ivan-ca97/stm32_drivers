@@ -16,7 +16,7 @@ class SessionManager
     public:
         SessionManager(std::span<Session*> sessionsStorage, const Clock& clock);
 
-        const Session* validate(TokenType token);
+        const Session* validate(Session::TokenType token);
 
         const Session* getSession(const User& user) const;
 

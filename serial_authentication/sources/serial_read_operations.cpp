@@ -127,8 +127,8 @@ void SerialAuthentication::logOut(uint8_t byte)
             }
             catch(...)
             {
-                writesUntilErrorCode = 0;
                 error = Error::TokenInvalid;
+                writesUntilErrorCode = 0;
             }
 
             state = State::SendingErrorCode;
@@ -159,7 +159,7 @@ void SerialAuthentication::logIn(uint8_t byte)
             catch(...)
             {
                 error = Error::AuthenticationError;
-                writesUntilErrorCode = sizeof(TokenType);
+                writesUntilErrorCode = sizeof(Session::TokenType);
             }
             break;
 

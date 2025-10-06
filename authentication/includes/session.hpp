@@ -2,11 +2,11 @@
 
 #include "user.hpp"
 
-typedef uint64_t TokenType;
-
 class Session
 {
     public:
+        using TokenType = uint64_t;
+
         Session() = default;
         Session(const User& user, uint32_t validitySeconds, uint32_t currentTime);
 

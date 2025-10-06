@@ -11,24 +11,24 @@ class UserManager
     public:
         User* createUser(Permission newPermission, std::string_view newUsername, std::string_view newPassword, std::string_view newName = "");
         const User* getUser(std::string_view username) const;
-        const User* getUser(uint16_t id) const;
+        const User* getUser(User::IdType id) const;
         void updateUser(User& updatedUser);
         void deleteUser(std::string_view username);
-        void deleteUser(uint16_t id);
+        void deleteUser(User::IdType id);
         void deleteUser(const User& user);
 
-        uint16_t getMaxUsers();
+        User::IdType getMaxUsers();
 
         UserManager(std::span<User*> usersStorage);
 
     protected:
         std::span<User*> users;
 
-        uint16_t loadedUsers = 0;
-        uint16_t idCounter = 0;
+        User::IdType loadedUsers = 0;
+        User::IdType idCounter = 0;
 
         User* getUserByUsername(std::string_view username) const;
-        User* getUserById(uint16_t id) const;
+        User* getUserById(User::IdType id) const;
         User* getFreeUser();
         void checkRepeatedUsername(std::string_view username);
 };
