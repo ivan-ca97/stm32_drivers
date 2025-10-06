@@ -121,8 +121,17 @@ void SerialAuthentication::logOut(uint8_t byte)
             if(!setTokenByte(byte))
                 break;
 
-            authentication->logOut(currentToken);
-            state = State::None;
+            try
+            {
+                authentication->logOut(currentToken);
+            }
+            catch(...)
+            {
+                writesUntilErrorCode = 0;
+                error = Error::TokenInvalid;
+            }
+
+            state = State::SendingErrorCode;
             break;
 
         default:

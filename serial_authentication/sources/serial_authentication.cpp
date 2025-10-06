@@ -91,6 +91,7 @@ uint8_t SerialAuthentication::getNextByte()
             byte = logIn();
             break;
         case Operation::LogOut:
+            // Error code only.
             break;
         case Operation::CreateUser:
             break;
