@@ -1,5 +1,7 @@
 #include "user.hpp"
 
+#include "authentication_exceptions.hpp"
+
 #include <cstring>
 #include <algorithm>
 #include <stdexcept>
@@ -142,7 +144,7 @@ void User::reset()
 void User::setString(std::string_view stringValue, std::span<char> storage, std::string_view errorMessage)
 {
     if(stringValue.length() >= storage.size())
-        throw std::logic_error(std::string(errorMessage));
+        throw BufferFullError(std::string(errorMessage));
 
     std::copy(stringValue.begin(), stringValue.end(), storage.begin());
     storage[stringValue.length()] = '\0';

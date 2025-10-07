@@ -1,5 +1,7 @@
 #include "user_manager.hpp"
 
+#include "authentication_exceptions.hpp"
+
 #include <stdexcept>
 #include <algorithm>
 
@@ -7,7 +9,7 @@ User* UserManager::createUser(Permission newPermission, std::string_view newUser
 {
     User* newUser = getFreeUser();
     if(!newUser)
-        throw std::logic_error("Users buffer full.");
+        throw BufferFullError("Users buffer full.");
 
     checkRepeatedUsername(newUsername);
 
@@ -57,7 +59,7 @@ User* UserManager::getUserById(User::IdType id) const
 void UserManager::updateUser(User& updatedUser)
 {
     if(updatedUser.getPassword().empty() || updatedUser.getUsername().empty())
-        throw std::logic_error("Empty password or username trying to update user.");
+        throw InsuficientDataError("Empty password or username trying to update user.");
 
     User* user = getUserById(updatedUser.getId());
 
@@ -74,7 +76,7 @@ void UserManager::deleteUser(std::string_view username)
 {
     User* user = getUserByUsername(username);
     if(!user)
-        throw std::logic_error("User not found.");
+        throw UserNotFoundError("User not found by username.");
 
     deleteUser(*user);
 }
@@ -84,7 +86,7 @@ void UserManager::deleteUser(User::IdType id)
     auto storedUser = getUserById(id);
 
     if(!storedUser)
-        throw std::logic_error("User not found.");
+        throw UserNotFoundError("User not found by ID.");
 
     storedUser->reset();
     loadedUsers--;
@@ -95,7 +97,7 @@ void UserManager::deleteUser(const User& user)
     auto storedUser = getUserById(user.getId());
 
     if(!storedUser || *storedUser != user)
-        throw std::logic_error("User not found.");
+        throw UserNotFoundError("User not found by ID.");
 
     storedUser->reset();
     loadedUsers--;
@@ -120,7 +122,7 @@ User* UserManager::getFreeUser()
 void UserManager::checkRepeatedUsername(std::string_view username)
 {
     if(getUserByUsername(username))
-        throw std::logic_error("User already exists.");
+        throw UsernameAlreadyExistsError("Username already exists.");
 }
 
 UserManager::UserManager(std::span<User*> usersStorage)

@@ -1,5 +1,7 @@
 #include "session_manager.hpp"
 
+#include "authentication_exceptions.hpp"
+
 #include <stdexcept>
 #include <algorithm>
 
@@ -28,7 +30,7 @@ const Session* SessionManager::createSession(const User& user)
 
     session = getFreeSession();
     if(!session)
-        throw std::logic_error("No sessions available.");
+        throw BufferFullError("No sessions available.");
 
     session->start(user, sessionValiditySeconds, clock->getTime());
     return session;
