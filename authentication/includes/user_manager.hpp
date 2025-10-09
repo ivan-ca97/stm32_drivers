@@ -6,16 +6,20 @@
 #include "user.hpp"
 #include "session.hpp"
 
+#include "authentication_errors.hpp"
+
+using ResultUser = Result<const User*>;
+
 class UserManager
 {
     public:
-        User* createUser(Permission newPermission, std::string_view newUsername, std::string_view newPassword, std::string_view newName = "");
-        const User* getUser(std::string_view username) const;
-        const User* getUser(User::IdType id) const;
-        void updateUser(User& updatedUser);
-        void deleteUser(std::string_view username);
-        void deleteUser(User::IdType id);
-        void deleteUser(const User& user);
+        ResultUser createUser(Permission newPermission, std::string_view newUsername, std::string_view newPassword, std::string_view newName = "");
+        ResultUser getUser(std::string_view username) const;
+        ResultUser getUser(User::IdType id) const;
+        ResultVoid updateUser(User& updatedUser);
+        ResultVoid deleteUser(std::string_view username);
+        ResultVoid deleteUser(User::IdType id);
+        ResultVoid deleteUser(const User& user);
 
         User::IdType getMaxUsers();
 
@@ -27,10 +31,10 @@ class UserManager
         User::IdType loadedUsers = 0;
         User::IdType idCounter = 0;
 
-        User* getUserByUsername(std::string_view username) const;
-        User* getUserById(User::IdType id) const;
-        User* getFreeUser();
-        void checkRepeatedUsername(std::string_view username);
+        Result<User*> getUserByUsername(std::string_view username) const;
+        Result<User*> getUserById(User::IdType id) const;
+        User* getFreeUser() const;
+        bool usernameExists(std::string_view username) const;
 };
 
 template <size_t UsersAmount, size_t UsernameLength, size_t PasswordLength, size_t NameLength>

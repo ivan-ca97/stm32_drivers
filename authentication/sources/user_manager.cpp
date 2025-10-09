@@ -1,106 +1,120 @@
 #include "user_manager.hpp"
 
-#include "authentication_exceptions.hpp"
-
 #include <stdexcept>
 #include <algorithm>
 
-User* UserManager::createUser(Permission newPermission, std::string_view newUsername, std::string_view newPassword, std::string_view newName)
+ResultUser UserManager::createUser(Permission newPermission, std::string_view newUsername, std::string_view newPassword, std::string_view newName)
 {
     User* newUser = getFreeUser();
     if(!newUser)
-        throw BufferFullError("Users buffer full.");
+        return Error(AuthenticationError::UsersBufferFull);
 
-    checkRepeatedUsername(newUsername);
+    if(usernameExists(newUsername))
+        return Error(AuthenticationError::UsernameAlreadyExists);
 
-    newUser->setUsername(newUsername);
-    newUser->setPassword(newPassword);
-    newUser->setName(newName);
+
     newUser->setPermission(newPermission);
     newUser->setId(idCounter++);
+    auto set = newUser->setBufferedFields(newUsername, newPassword, newName);
+    if(!set)
+        return Error(set.error());
+
     newUser->makeValid();
 
     loadedUsers++;
     return newUser;
 }
 
-const User* UserManager::getUser(std::string_view username) const
+ResultUser UserManager::getUser(std::string_view username) const
 {
     return getUserByUsername(username);
 }
 
-const User* UserManager::getUser(User::IdType id) const
+ResultUser UserManager::getUser(User::IdType id) const
 {
     return getUserById(id);
 }
 
-User* UserManager::getUserByUsername(std::string_view username) const
+Result<User*> UserManager::getUserByUsername(std::string_view username) const
 {
     auto findLambda = [&](const User* user) {return user && user->getUsername() == username;};
     auto it = std::find_if(users.begin(), users.end(), findLambda);
 
     if(it == users.end())
-        return nullptr;
+        return Error(AuthenticationError::UsernameNotFound);
 
     return *it;
 }
 
-User* UserManager::getUserById(User::IdType id) const
+Result<User*> UserManager::getUserById(User::IdType id) const
 {
     auto findLambda = [&](const User* user) {return user && user->getId() == id;};
     auto it = std::find_if(users.begin(), users.end(), findLambda);
 
     if(it == users.end())
-        return nullptr;
+        return Error(AuthenticationError::UserIdNotFound);
 
     return *it;
 }
 
-void UserManager::updateUser(User& updatedUser)
+ResultVoid UserManager::updateUser(User& updatedUser)
 {
     if(updatedUser.getPassword().empty() || updatedUser.getUsername().empty())
-        throw InsuficientDataError("Empty password or username trying to update user.");
+        return Error(AuthenticationError::EmptyMandatoryField);
 
-    User* user = getUserById(updatedUser.getId());
+    auto userResult = getUserById(updatedUser.getId());
+    if(!userResult)
+        return Error(userResult.error());
+
+    auto user = *userResult;
 
     if(user->getUsername() != updatedUser.getUsername())
-        checkRepeatedUsername(updatedUser.getUsername());
+    {
+        if(getUserByUsername(updatedUser.getUsername()))
+            return Error(AuthenticationError::UsernameAlreadyExists);
+    }
 
-    user->setName(updatedUser.getName());
-    user->setPassword(updatedUser.getPassword());
-    user->setUsername(updatedUser.getUsername());
     user->setPermission(updatedUser.getPermission());
+    auto set = updatedUser.setBufferedFields(updatedUser.getUsername(), updatedUser.getPassword(), updatedUser.getName());
+    if(!set)
+        return Error(set.error());
+
+    return {};
 }
 
-void UserManager::deleteUser(std::string_view username)
+ResultVoid UserManager::deleteUser(std::string_view username)
 {
-    User* user = getUserByUsername(username);
+    auto user = getUserByUsername(username);
     if(!user)
-        throw UserNotFoundError("User not found by username.");
+        return Error(user.error());
 
-    deleteUser(*user);
+    return deleteUser(**user);
 }
 
-void UserManager::deleteUser(User::IdType id)
+ResultVoid UserManager::deleteUser(User::IdType id)
 {
     auto storedUser = getUserById(id);
 
     if(!storedUser)
-        throw UserNotFoundError("User not found by ID.");
+        return Error(storedUser.error());
 
-    storedUser->reset();
+    (*storedUser)->reset();
     loadedUsers--;
+
+    return {};
 }
 
-void UserManager::deleteUser(const User& user)
+ResultVoid UserManager::deleteUser(const User& user)
 {
     auto storedUser = getUserById(user.getId());
 
-    if(!storedUser || *storedUser != user)
-        throw UserNotFoundError("User not found by ID.");
+    if(!storedUser || **storedUser != user)
+        return Error(AuthenticationError::UserIdNotFound);
 
-    storedUser->reset();
+    (*storedUser)->reset();
     loadedUsers--;
+
+    return {};
 }
 
 User::IdType UserManager::getMaxUsers()
@@ -108,7 +122,7 @@ User::IdType UserManager::getMaxUsers()
     return users.size();
 }
 
-User* UserManager::getFreeUser()
+User* UserManager::getFreeUser() const
 {
     auto findLambda = [&](const User* user) {return user && !user->isValid();};
     auto it = std::find_if(users.begin(), users.end(), findLambda);
@@ -119,10 +133,9 @@ User* UserManager::getFreeUser()
     return *it;
 }
 
-void UserManager::checkRepeatedUsername(std::string_view username)
+bool UserManager::usernameExists(std::string_view username) const
 {
-    if(getUserByUsername(username))
-        throw UsernameAlreadyExistsError("Username already exists.");
+    return static_cast<bool>(getUserByUsername(username));
 }
 
 UserManager::UserManager(std::span<User*> usersStorage)

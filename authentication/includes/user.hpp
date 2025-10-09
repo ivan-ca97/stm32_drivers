@@ -5,6 +5,8 @@
 #include <span>
 #include <array>
 
+#include "authentication_errors.hpp"
+
 enum class Permission
 {
     Superuser,
@@ -30,12 +32,15 @@ class User
         bool hasPermission(Permission permission) const;
         bool isValid() const;
 
-        void setUsername(std::string_view newUsername);
-        void setPassword(std::string_view newPassword);
-        void setName(std::string_view newName);
+        ResultVoid setUsername(std::string_view newUsername);
+        ResultVoid setPassword(std::string_view newPassword);
+        ResultVoid setName(std::string_view newName);
         void setId(User::IdType newId);
         void setPermission(Permission newPermission);
         void makeValid();
+
+        // Method used to receive a single error code for all fields set.
+        ResultVoid setBufferedFields(std::string_view username, std::string_view password, std::string_view name);
 
         void reset();
 
@@ -50,7 +55,7 @@ class User
         Permission permission;
         bool valid;
 
-        static void setString(std::string_view stringValue, std::span<char> storage, std::string_view errorMessage = "String too long");
+        static ResultVoid setString(std::string_view stringValue, std::span<char> storage);
         static std::string_view getString(std::span<char> storage);
 };
 

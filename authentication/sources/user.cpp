@@ -1,7 +1,5 @@
 #include "user.hpp"
 
-#include "authentication_exceptions.hpp"
-
 #include <cstring>
 #include <algorithm>
 #include <stdexcept>
@@ -99,19 +97,25 @@ bool User::isValid() const
     return valid;
 }
 
-void User::setUsername(std::string_view newUsername)
+ResultVoid User::setUsername(std::string_view newUsername)
 {
-    setString(newUsername, username, "Username too long");
+    auto set = setString(newUsername, username);
+    if(!set)
+        return Error(AuthenticationError::UsernameBufferOverflow);
 }
 
-void User::setPassword(std::string_view newPassword)
+ResultVoid User::setPassword(std::string_view newPassword)
 {
-    setString(newPassword, password, "Password too long");
+    auto set = setString(newPassword, password);
+    if(!set)
+        return Error(AuthenticationError::PasswordBufferOverflow);
 }
 
-void User::setName(std::string_view newName)
+ResultVoid User::setName(std::string_view newName)
 {
-    setString(newName, name, "Name too long");
+    auto set = setString(newName, name);
+    if(!set)
+        return Error(AuthenticationError::NameBufferOverflow);
 }
 
 void User::setId(User::IdType newId)
@@ -122,6 +126,21 @@ void User::setId(User::IdType newId)
 void User::setPermission(Permission newPermission)
 {
     permission = newPermission;
+}
+
+ResultVoid User::setBufferedFields(std::string_view username, std::string_view password, std::string_view name)
+{
+    auto set = setUsername(username);
+    if(!set)
+        return Error(set.error());
+
+    set = setPassword(password);
+    if(!set)
+        return Error(set.error());
+
+    set = setName(name);
+    if(!set)
+        return Error(set.error());
 }
 
 void User::makeValid()
@@ -141,10 +160,10 @@ void User::reset()
     password[0] = '\0';
 }
 
-void User::setString(std::string_view stringValue, std::span<char> storage, std::string_view errorMessage)
+ResultVoid User::setString(std::string_view stringValue, std::span<char> storage)
 {
     if(stringValue.length() >= storage.size())
-        throw BufferFullError(std::string(errorMessage));
+        return Error(AuthenticationError::Overflow);
 
     std::copy(stringValue.begin(), stringValue.end(), storage.begin());
     storage[stringValue.length()] = '\0';

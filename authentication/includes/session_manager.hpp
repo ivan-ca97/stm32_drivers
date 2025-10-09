@@ -2,6 +2,8 @@
 
 #include "session.hpp"
 
+#include "authentication_errors.hpp"
+
 class Clock
 {
     public:
@@ -11,16 +13,18 @@ class Clock
         }
 };
 
+using ResultSession = Result<const Session*>;
+
 class SessionManager
 {
     public:
         SessionManager(std::span<Session*> sessionsStorage, const Clock& clock);
 
-        const Session* validate(Session::TokenType token);
+        ResultSession validate(Session::TokenType token);
 
         const Session* getSession(const User& user) const;
 
-        const Session* createSession(const User& user);
+        ResultSession createSession(const User& user);
 
         void expireSession(const Session& user);
 

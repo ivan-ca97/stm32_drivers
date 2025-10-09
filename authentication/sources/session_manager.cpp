@@ -1,17 +1,15 @@
 #include "session_manager.hpp"
 
-#include "authentication_exceptions.hpp"
-
 #include <stdexcept>
 #include <algorithm>
 
-const Session* SessionManager::validate(Session::TokenType token)
+ResultSession SessionManager::validate(Session::TokenType token)
 {
     auto findLambda = [&](const Session* session) {return session->getToken() == token;};
     auto it = std::find_if(sessions.begin(), sessions.end(), findLambda);
 
     if(it == sessions.end())
-        return nullptr;
+        return Error(AuthenticationError::InvalidToken);
 
     return *it;
 }
@@ -21,7 +19,7 @@ const Session* SessionManager::getSession(const User& user) const
     return getSessionByUser(user);
 }
 
-const Session* SessionManager::createSession(const User& user)
+ResultSession SessionManager::createSession(const User& user)
 {
     // Invalidate currently active session if there is one for the user.
     Session* session = getSessionByUser(user);
@@ -30,7 +28,7 @@ const Session* SessionManager::createSession(const User& user)
 
     session = getFreeSession();
     if(!session)
-        throw BufferFullError("No sessions available.");
+        return Error(AuthenticationError::SessionBufferFull);
 
     session->start(user, sessionValiditySeconds, clock->getTime());
     return session;

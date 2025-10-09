@@ -1,7 +1,6 @@
 #include "authentication.hpp"
-#include "authentication_exceptions.hpp"
 
-#include <stdexcept>
+#include <expected>
 #include <algorithm>
 
 Authentication::Authentication(UserManager& userManager, SessionManager& sessionManager)
@@ -10,23 +9,23 @@ Authentication::Authentication(UserManager& userManager, SessionManager& session
 
 }
 
-const Session* Authentication::authenticate(std::string_view username, std::string_view password)
+ResultSession Authentication::authenticate(std::string_view username, std::string_view password)
 {
-    const User* user = userManager->getUser(username);
+    auto user = userManager->getUser(username);
     if(!user)
-        throw UserNotFoundError("User not found.");
+        return Error(AuthenticationError::UsernameNotFound);
 
-    if(!user->authenticate(password))
-        throw AuthenticationError("Password incorrect.");
+    if(!(*user)->authenticate(password))
+        return Error(AuthenticationError::IncorrectPassword);
 
-    const Session* session = sessionManager->createSession(*user);
+    auto session = sessionManager->createSession(**user);
     if(!session)
-        throw BufferFullError("Sessions buffer full.");
+        return Error(AuthenticationError::SessionBufferFull);
 
     return session;
 }
 
-const Session* Authentication::validate(Session::TokenType token)
+ResultSession Authentication::validate(Session::TokenType token)
 {
     return sessionManager->validate(token);
 }
@@ -46,140 +45,182 @@ SessionManager* Authentication::getSessionManager()
     return sessionManager;
 }
 
-const Session* Authentication::validateWithPermission(Session::TokenType token, Permission permission)
+ResultSession Authentication::validateWithPermission(Session::TokenType token, Permission permission)
 {
-    const Session* session = sessionManager->validate(token);
+    auto session = sessionManager->validate(token);
     if(!session)
-        throw InvalidTokenError("Invalid Token.");
+        return Error(session.error());
 
-    if(!session->getUser()->hasPermission(permission))
-        throw InsuficientPermissionsError("User does not have sufficient permissions.");
+    if(!(*session)->getUser()->hasPermission(permission))
+        return Error(AuthenticationError::InsufficientPermissions);
 
     return session;
 }
 
-User::IdType Authentication::createUser(Session::TokenType token, Permission newPermission, std::string_view newUsername, std::string_view newPassword, std::string_view newName)
+Result<User::IdType> Authentication::createUser(Session::TokenType token, Permission newPermission, std::string_view newUsername, std::string_view newPassword, std::string_view newName)
 {
-    validateWithPermission(token, Permission::Superuser);
+    auto session = validateWithPermission(token, Permission::Superuser);
+    if(!session)
+        return Error(session.error());
 
     auto newUser = userManager->createUser(newPermission, newUsername, newPassword, newName);
-    return newUser->getId();
+    if(!newUser)
+        return Error(newUser.error());
+
+    return (*newUser)->getId();
 }
 
-void Authentication::deleteUser(Session::TokenType token, const User& user)
+ResultVoid Authentication::deleteUser(Session::TokenType token, const User& user)
 {
-    validateWithPermission(token, Permission::Superuser);
-
-    userManager->deleteUser(user);
-}
-
-void Authentication::deleteUser(Session::TokenType token, User::IdType userId)
-{
-    validateWithPermission(token, Permission::Superuser);
-
-    userManager->deleteUser(userId);
-}
-
-void Authentication::logOut(Session::TokenType token)
-{
-    const Session* session = sessionManager->validate(token);
+    auto session = validateWithPermission(token, Permission::Superuser);
     if(!session)
-        throw InvalidTokenError("Invalid token.");
+        return Error(session.error());
 
-    sessionManager->expireSession(*session);
+    return userManager->deleteUser(user);
 }
 
-void Authentication::modifyOwnUsername(Session::TokenType token, std::string_view newUsername)
+ResultVoid Authentication::deleteUser(Session::TokenType token, User::IdType userId)
 {
-    const Session* session = sessionManager->validate(token);
+    auto session = validateWithPermission(token, Permission::Superuser);
     if(!session)
-        throw InvalidTokenError("Invalid token.");
+        return Error(session.error());
 
-    User updatedUser = *session->getUser();
-
-    updatedUser.setUsername(newUsername);
-    userManager->updateUser(updatedUser);
+    return userManager->deleteUser(userId);
 }
 
-void Authentication::modifyOwnPassword(Session::TokenType token, std::string_view oldPassword, std::string_view newPassword)
+ResultVoid Authentication::logOut(Session::TokenType token)
 {
-    const Session* session = sessionManager->validate(token);
+    auto session = sessionManager->validate(token);
     if(!session)
-        throw InvalidTokenError("Invalid token.");
+        return Error(session.error());
 
-    User updatedUser = *session->getUser();
+    sessionManager->expireSession(**session);
+    return {};
+}
+
+ResultVoid Authentication::modifyOwnUsername(Session::TokenType token, std::string_view newUsername)
+{
+    auto session = sessionManager->validate(token);
+    if(!session)
+        return Error(session.error());
+
+    User updatedUser = *(*session)->getUser();
+
+    auto updated = updatedUser.setUsername(newUsername);
+    if(!updated)
+        return Error(updated.error());
+
+    return userManager->updateUser(updatedUser);
+}
+
+ResultVoid Authentication::modifyOwnPassword(Session::TokenType token, std::string_view oldPassword, std::string_view newPassword)
+{
+    auto session = sessionManager->validate(token);
+    if(!session)
+        return Error(session.error());
+
+    User updatedUser = *(*session)->getUser();
 
     if(!updatedUser.authenticate(oldPassword))
-        throw AuthenticationError("Wrong password.");
+        return Error(AuthenticationError::IncorrectPassword);
 
-    updatedUser.setPassword(newPassword);
-    userManager->updateUser(updatedUser);
+    auto updated = updatedUser.setPassword(newPassword);
+    if(!updated)
+        return Error(updated.error());
+
+    return userManager->updateUser(updatedUser);
 }
 
-void Authentication::modifyOwnName(Session::TokenType token, std::string_view newName)
+ResultVoid Authentication::modifyOwnName(Session::TokenType token, std::string_view newName)
 {
-    const Session* session = sessionManager->validate(token);
+    auto session = sessionManager->validate(token);
     if(!session)
-        throw InvalidTokenError("Invalid token.");
+        return Error(session.error());
 
-    const User* user = session->getUser();
+    const User* user = (*session)->getUser();
     if(!user)
-        throw IntegrityError("Error getting session user.");
+        return Error(AuthenticationError::IntegrityFailure);
 
     User updatedUser = *user;
-    updatedUser.setName(newName);
-    userManager->updateUser(updatedUser);
+
+    auto updated = updatedUser.setName(newName);
+    if(!updated)
+        return Error(updated.error());
+
+    return userManager->updateUser(updatedUser);
 }
 
 
-void Authentication::modifyUsername(Session::TokenType token, User::IdType id, std::string_view newUsername)
+ResultVoid Authentication::modifyUsername(Session::TokenType token, User::IdType id, std::string_view newUsername)
 {
-    validateWithPermission(token, Permission::Superuser);
+    auto session = validateWithPermission(token, Permission::Superuser);
+    if(!session)
+        return Error(session.error());
 
-    const User* user = userManager->getUser(id);
+    auto user = userManager->getUser(id);
     if(!user)
-        throw IntegrityError("Error getting session user.");
+        return Error(AuthenticationError::IntegrityFailure);
 
-    User updatedUser = *user;
-    updatedUser.setUsername(newUsername);
-    userManager->updateUser(updatedUser);
+    User updatedUser = **user;
+
+    auto updated = updatedUser.setUsername(newUsername);
+    if(!updated)
+        return Error(updated.error());
+
+    return userManager->updateUser(updatedUser);
 }
 
-void Authentication::modifyPassword(Session::TokenType token, User::IdType id, std::string_view newPassword)
+ResultVoid Authentication::modifyPassword(Session::TokenType token, User::IdType id, std::string_view newPassword)
 {
-    validateWithPermission(token, Permission::Superuser);
+    auto session = validateWithPermission(token, Permission::Superuser);
+    if(!session)
+        return Error(session.error());
 
-    const User* user = userManager->getUser(id);
+    auto user = userManager->getUser(id);
     if(!user)
-        throw IntegrityError("Error getting session user.");
+        return Error(AuthenticationError::IntegrityFailure);
 
-    User updatedUser = *user;
-    updatedUser.setPassword(newPassword);
-    userManager->updateUser(updatedUser);
+    User updatedUser = **user;
+
+    auto updated = updatedUser.setPassword(newPassword);
+    if(!updated)
+        return Error(updated.error());
+
+    return userManager->updateUser(updatedUser);
 }
 
-void Authentication::modifyName(Session::TokenType token, User::IdType id, std::string_view newName)
+ResultVoid Authentication::modifyName(Session::TokenType token, User::IdType id, std::string_view newName)
 {
-    validateWithPermission(token, Permission::Superuser);
+    auto session = validateWithPermission(token, Permission::Superuser);
+    if(!session)
+        return Error(session.error());
 
-    const User* user = userManager->getUser(id);
+    auto user = userManager->getUser(id);
     if(!user)
-        throw IntegrityError("Error getting session user.");
+        return Error(AuthenticationError::IntegrityFailure);
 
-    User updatedUser = *user;
-    updatedUser.setName(newName);
-    userManager->updateUser(updatedUser);
+    User updatedUser = **user;
+
+    auto updated = updatedUser.setName(newName);
+    if(!updated)
+        return Error(updated.error());
+
+    return userManager->updateUser(updatedUser);
 }
 
-void Authentication::modifyPermission(Session::TokenType token, User::IdType id, Permission newPermission)
+ResultVoid Authentication::modifyPermission(Session::TokenType token, User::IdType id, Permission newPermission)
 {
-    validateWithPermission(token, Permission::Superuser);
+    auto session = validateWithPermission(token, Permission::Superuser);
+    if(!session)
+        return Error(session.error());
 
-    const User* user = userManager->getUser(id);
+    auto user = userManager->getUser(id);
     if(!user)
-        throw IntegrityError("Error getting session user.");
+        return Error(AuthenticationError::IntegrityFailure);
 
-    User updatedUser = *user;
+    User updatedUser = **user;
+
     updatedUser.setPermission(newPermission);
-    userManager->updateUser(updatedUser);
+
+    return userManager->updateUser(updatedUser);
 }
