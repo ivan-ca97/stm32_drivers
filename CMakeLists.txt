@@ -11,6 +11,8 @@ add_subdirectory(lib/queue)
 add_subdirectory(lib/set)
 add_subdirectory(drivers/timer)
 add_subdirectory(drivers/i2c)
+add_subdirectory(authentication)
+add_subdirectory(controller)
 
 target_link_libraries(${CMAKE_PROJECT_NAME}
     custom_exception
@@ -18,4 +20,7 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
     set
     timer_driver
     i2c_driver
+    authentication
+    serial_authentication
+    controller
 )
