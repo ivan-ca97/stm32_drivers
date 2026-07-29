@@ -1,0 +1,1 @@
+# Authentication with serial management for embedded systems.
