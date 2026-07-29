@@ -76,7 +76,7 @@ uint8_t I2cTransaction::getRegisterLengthBytes()
 
 void I2cTransaction::setState(State state)
 {
-    state = state;
+    this->state = state;
 }
 
 I2cTransaction::State I2cTransaction::getState()

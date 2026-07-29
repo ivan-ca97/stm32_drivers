@@ -5,6 +5,40 @@
 #define READ false
 #define WRITE true
 
+// ============================================================================
+// I2C master state machine (STM32 I2Cv1) — theory of operation
+//
+// The master is a byte-at-a-time state machine driven by the EV/ER interrupts.
+// Each masterState*() handler runs on an event and advances `state`.
+//
+// Transfer sequences on the wire:
+//   Write:          START addr+W  data...                       STOP
+//   Read:           START addr+R  data...                       STOP
+//   Register read:  START addr+W  reg  REPEATED-START addr+R  data...  STOP
+//   Register write: START addr+W  reg  data...                  STOP
+//
+// Key I2Cv1 flags and the timing rules the FSM relies on:
+//   SB    - Start Bit sent -> send the slave address now.
+//   ADDR  - address ACKed  -> clear it (read SR1 then SR2) to proceed.
+//   TXE   - DR empty (byte moved to the shift register) -> load next byte.
+//           The previous byte is STILL shifting out on the wire.
+//   BTF   - Byte Transfer Finished: the byte is fully on the wire and the clock
+//           is stretched. Only now is it safe to issue a STOP or a
+//           REPEATED-START. Acting on TXE instead of BTF would cut the byte.
+//   RXNE  - receive DR holds a byte to read.
+//   BUF IT (ITBUFEN) enables the TXE/RXNE interrupts; it is disabled while
+//           waiting for BTF so we don't get spurious TXE-driven callbacks.
+//
+// Master receive tail (ST procedure): for the last 1-2 bytes, ACK/POS must be
+// set before reading so the last byte is NACKed and a STOP is issued. See
+// prepareMasterRx().
+//
+// STOP is a MASTER-only action: generating a STOP while addressed as a slave latches
+// the STOP bit and breaks the slave. So error handling must deal with the slave/idle
+// cases and return BEFORE the master recovery path (which issues a STOP to release the
+// bus). See errorCallback().
+// ============================================================================
+
 bool I2cBus::sendSlaveAddress(bool readBit)
 {
     // The address should only be sent right after the start condition. Do not send if the start condition isn't set.
@@ -47,6 +81,7 @@ void I2cBus::finishCurrentTransaction(bool postCallback)
         currentTransaction->setState(I2cTransaction::FINISHED);
     }
     queue->dequeue();
+    currentTransaction = nullptr;
     state = State::Idle;
     sendNextTransaction();
 }
@@ -70,7 +105,7 @@ void I2cBus::masterStateSendSlaveAddress()
         state = State::SendRegister;
         currentTransaction->setState(I2cTransaction::SENDING_REGISTER);
     }
-    else if(currentTransaction->isRx())
+    else if(currentTransaction->isTx())
     {
         state = State::SendData;
         currentTransaction->setState(I2cTransaction::EXCHANGING_DATA);
@@ -78,6 +113,7 @@ void I2cBus::masterStateSendSlaveAddress()
     else
     {
         prepareMasterRx(currentTransaction->getDataLengthBytes());
+        currentTransaction->setState(I2cTransaction::EXCHANGING_DATA);
         state = State::ReceiveData;
     }
 
@@ -100,8 +136,9 @@ void I2cBus::masterStateSendRegister()
     currentTransaction->setState(I2cTransaction::EXCHANGING_DATA);
     if(currentTransaction->isRx())
     {
+        // Register sent. For a read, wait for BTF before the repeated-START (see the
+        // file header) — masterStateSendLastRegisterByte issues it. Don't START here.
         LL_I2C_DisableIT_BUF(instance);
-        LL_I2C_GenerateStartCondition(instance);
         state = State::LastRegisterByte;
     }
 
@@ -180,6 +217,9 @@ void I2cBus::masterStateReceiveData()
 
 void I2cBus::eventSlaveCallback()
 {
+    if(!slave)
+        return;
+
     if(LL_I2C_IsActiveFlag_ADDR(instance))
     {
         LL_I2C_ReadReg(instance, SR1);
@@ -259,42 +299,67 @@ void I2cBus::eventMasterCallback()
 
 void I2cBus::errorCallback()
 {
-    bool slaveError = true;
-    if (LL_I2C_IsActiveFlag_AF(instance))
-    {
-        LL_I2C_ClearFlag_AF(instance);
+    // Read and clear all error flags.
+    bool af   = LL_I2C_IsActiveFlag_AF(instance);
+    bool arlo = LL_I2C_IsActiveFlag_ARLO(instance);
+    bool berr = LL_I2C_IsActiveFlag_BERR(instance);
+    bool ovr  = LL_I2C_IsActiveFlag_OVR(instance);
 
-        // When sending data as a slave, transactions end with AF.
-        if(state == State::SlaveTransmit)
+    if(af)   LL_I2C_ClearFlag_AF(instance);
+    if(arlo) LL_I2C_ClearFlag_ARLO(instance);
+    if(berr) LL_I2C_ClearFlag_BERR(instance);
+    if(ovr) { LL_I2C_ReceiveData8(instance); LL_I2C_ClearFlag_OVR(instance); }
+
+    // Handle slave-side and idle errors first, then return: the master recovery below
+    // issues a STOP, which is master-only (see file header).
+
+    // Slave-side error
+    if(state == State::SlaveTransmit || state == State::SlaveReceive)
+    {
+        LL_I2C_DisableIT_BUF(instance);
+
+        // AF during SlaveTransmit is the NORMAL end: the master NACKs the last byte.
+        if(af && state == State::SlaveTransmit)
         {
-            slaveError = false;
-            LL_I2C_DisableIT_BUF(instance);
-            slave->onEndTransaction();
-            state = State::Idle;
+            if(slave) slave->onEndTransaction();
         }
-    }
-
-    if (LL_I2C_IsActiveFlag_ARLO(instance))
-        LL_I2C_ClearFlag_ARLO(instance);
-
-    if (LL_I2C_IsActiveFlag_BERR(instance))
-        LL_I2C_ClearFlag_BERR(instance);
-
-    if (LL_I2C_IsActiveFlag_OVR(instance))
-    {
-        LL_I2C_ReceiveData8(instance);
-        LL_I2C_ClearFlag_OVR(instance);
-    }
-
-    if(slaveError)
-        slave->onError();
-
-    if(!currentTransaction)
+        else
+        {
+            if(slave) slave->onError();
+        }
+        state = State::Idle;
+        LL_I2C_AcknowledgeNextData(instance, LL_I2C_ACK);   // re-arm ACK for the next transaction
         return;
+    }
+
+    bool hadMasterTransaction = (currentTransaction != nullptr);
+
+    // No master transaction in progress: spurious error while idle / addressed as a slave.
+    if(!hadMasterTransaction)
+    {
+        LL_I2C_AcknowledgeNextData(instance, LL_I2C_ACK);
+        if(berr && LL_I2C_IsActiveFlag_BUSY(instance))
+            resetBus();
+        return;
+    }
+
+    // Master-side error with a transaction in progress
+    LL_I2C_DisableIT_BUF(instance);
 
     currentTransaction->setState(I2cTransaction::ERROR);
     currentTransaction->errorCallback();
-    finishCurrentTransaction(false);
-    sendNextTransaction();
+    if(queue && queue->hasData())
+        queue->dequeue();
+    currentTransaction = nullptr;
+    state = State::Idle;
 
+    // Release the bus with a STOP (required after a NACK as master).
+    LL_I2C_GenerateStopCondition(instance);
+
+    // Full recovery (no MCU reset) ONLY on a real bus error.
+    if(berr)
+        resetBus();
+
+    // Try to make progress with whatever is left in the queue.
+    sendNextTransaction();
 }

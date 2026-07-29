@@ -16,7 +16,7 @@ struct I2cBus::Config
     Set<I2cDevice*>* devicesSet = nullptr;
     I2cSlave* slave = nullptr;
     Timer* timer = nullptr;
-    uint16_t retryIntervalMs;
+    uint16_t retryIntervalMs = 10;
 };
 
 
