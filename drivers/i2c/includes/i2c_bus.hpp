@@ -121,6 +121,15 @@ class I2cBus
 
         bool fastMode;
 
+        // Init parameters for auto-recovery.
+        uint32_t clockSpeed;
+        uint16_t ownAddress1;
+        uint16_t ownAddress2;
+        bool addressing7Bit;
+        DutyCycle dutyCycle;
+        bool clockStretching;
+        bool generalCall;
+
         std::string name;
 
         State state = State::Idle;
@@ -142,18 +151,30 @@ class I2cBus
         void scheduleTimer();
 
         /*
-         *  @brief Initializes the I2C instance with the given parameters
-         *
-         *	@param config All the configuration parameters passed in the constructor.
+         *  @brief Initializes and enables the I2C peripheral using the stored config members.
          *
          *  @throws I2cException: If there's a HAL error.
          */
-        void initInstance(const Config& config);
+        void initInstance();
 
         void registerDriver(Selection bus);
 
         void initGpio();
         void deinitGpio();
+
+        /*
+         *  @brief Full bus recovery without an MCU reset: frees the lines (recoverBus),
+         *  resets and reconfigures the I2C peripheral, and returns to Idle. Used when the
+         *  bus gets stuck (BUSY/BERR latched).
+         */
+        void resetBus();
+
+        /*
+         *  @brief Frees the bus if it got stuck (SDA held low / BUSY latched). Drives
+         *  SCL/SDA as GPIO, clocks SCL up to 9 times so a stuck slave releases SDA, and
+         *  generates a STOP condition. Must be called before enabling the I2C peripheral.
+         */
+        void recoverBus();
 
         /*
          *  @brief Checks whether the addresses are valid, taking into account the addressing mode

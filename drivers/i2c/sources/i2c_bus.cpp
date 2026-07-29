@@ -1,5 +1,6 @@
 #include "i2c_bus.hpp"
 #include "i2c_bus_builder.hpp"
+#include "i2c_bus_hw.hpp"
 #include "i2c_device.hpp"
 
 #include "stm32f4xx_ll_i2c.h"
@@ -136,6 +137,15 @@ void I2cBus::init(const Config& config)
     timer = config.timer;
     retryIntervalMs = config.retryIntervalMs;
 
+    // Save init parameters so resetBus() can reconfigure the peripheral.
+    clockSpeed      = config.clockSpeed;
+    ownAddress1     = config.ownAddress1;
+    ownAddress2     = config.ownAddress2;
+    addressing7Bit  = config.addressing7Bit;
+    dutyCycle       = config.dutyCycle;
+    clockStretching = config.clockStretching;
+    generalCall     = config.generalCall;
+
     if(slave)
         slave->setBus(*this);
 
@@ -152,9 +162,14 @@ void I2cBus::init(const Config& config)
     if(!masterOnly)
         areAddressesValid(config.ownAddress1, config.ownAddress2, config.addressing7Bit);
 
-    initInstance(config);
+    // Free the bus in case it got stuck (a slave holding SDA, or the peripheral
+    // with BUSY latched) BEFORE configuring the pins as I2C.
+    recoverBus();
 
+    // GPIO must be configured BEFORE enabling the peripheral: if the I2C is enabled
+    // while SDA/SCL are low, the BUSY flag latches and won't clear without a peripheral reset.
     initGpio();
+    initInstance();
     enableInterrupts();
 }
 
@@ -206,22 +221,7 @@ uint32_t I2cBus::getCurrentIndex()
 
 void I2cBus::registerDriver(Selection bus)
 {
-    uint8_t i;
-
-    switch(bus)
-    {
-        case Selection::Bus1:
-            i = 0;
-            break;
-        case Selection::Bus2:
-            i = 1;
-            break;
-        case Selection::Bus3:
-            i = 2;
-            break;
-        default:
-            throw I2cException();
-    }
+    uint16_t i = getBusDriverNumber(bus);
 
     if(drivers[i] != nullptr)
         throw I2cException("Bus already in use");
@@ -229,60 +229,45 @@ void I2cBus::registerDriver(Selection bus)
     drivers[i] = this;
 }
 
-void I2cBus::initInstance(const Config& config)
+void I2cBus::initInstance()
 {
-    switch (this->bus)
-    {
-        case Selection::Bus1:
-            instance = I2C1;
-            break;
-        case Selection::Bus2:
-            instance = I2C2;
-            break;
-        case Selection::Bus3:
-            instance = I2C3;
-            break;
-        default:
-            throw I2cException();
-    }
+    instance = i2cBusHw(bus).instance;
 
     LL_I2C_Disable(instance);
     LL_I2C_DeInit(instance);
 
-    uint32_t dutyCycle;
-    if(config.dutyCycle == DutyCycle::Dc_2)
-        dutyCycle = LL_I2C_DUTYCYCLE_2;
-    if(config.dutyCycle == DutyCycle::Dc_16_9)
-        dutyCycle = LL_I2C_DUTYCYCLE_16_9;
+    uint32_t llDutyCycle = LL_I2C_DUTYCYCLE_2;
+    if(dutyCycle == DutyCycle::Dc_16_9)
+        llDutyCycle = LL_I2C_DUTYCYCLE_16_9;
 
     LL_I2C_InitTypeDef i2cInit;
     LL_I2C_StructInit(&i2cInit);
     i2cInit.PeripheralMode  = LL_I2C_MODE_I2C;
-    i2cInit.ClockSpeed      = config.clockSpeed;
-    i2cInit.DutyCycle       = dutyCycle;
-    i2cInit.OwnAddress1     = config.ownAddress1 << 1;
+    i2cInit.ClockSpeed      = clockSpeed;
+    i2cInit.DutyCycle       = llDutyCycle;
+    i2cInit.OwnAddress1     = ownAddress1 << 1;
     i2cInit.TypeAcknowledge = LL_I2C_ACK;
-    i2cInit.OwnAddrSize     = config.addressing7Bit ? LL_I2C_OWNADDRESS1_7BIT : LL_I2C_OWNADDRESS1_10BIT;
+    i2cInit.OwnAddrSize     = addressing7Bit ? LL_I2C_OWNADDRESS1_7BIT : LL_I2C_OWNADDRESS1_10BIT;
 
     auto initStatus = LL_I2C_Init(instance, &i2cInit);
     if(initStatus != SUCCESS)
         throw I2cException("Error initializing I2C.");
 
     // Dual address
-    LL_I2C_SetOwnAddress2(instance, config.ownAddress2);
-    if(config.ownAddress2 != 0x00)
+    LL_I2C_SetOwnAddress2(instance, ownAddress2);
+    if(ownAddress2 != 0x00)
         LL_I2C_EnableOwnAddress2(instance);
     else
         LL_I2C_DisableOwnAddress2(instance);
 
     // Clock stretching
-    if(config.clockStretching)
+    if(clockStretching)
         LL_I2C_EnableClockStretching(instance);
     else
         LL_I2C_DisableClockStretching(instance);
 
     // General call
-    if(config.generalCall)
+    if(generalCall)
         LL_I2C_EnableGeneralCall(instance);
     else
         LL_I2C_DisableGeneralCall(instance);
@@ -291,127 +276,122 @@ void I2cBus::initInstance(const Config& config)
     LL_I2C_AcknowledgeNextData(instance, LL_I2C_ACK);
 }
 
+namespace
+{
+    // Rough delay of tens of microseconds for the recovery bit-bang.
+    // It doesn't need to be precise; slower is safe.
+    inline void i2cBusDelay()
+    {
+        for(volatile uint32_t i = 0; i < 200; i++)
+            __NOP();
+    }
+}
+
+void I2cBus::recoverBus()
+{
+    const I2cBusHw& hw = i2cBusHw(bus);
+    hw.enableClocks();
+
+    // SCL and SDA as open-drain GPIO with pull-up, released (high).
+    GPIO_InitTypeDef gpio = {};
+    gpio.Mode  = GPIO_MODE_OUTPUT_OD;
+    gpio.Pull  = GPIO_PULLUP;
+    gpio.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+
+    gpio.Pin = hw.sclPin;
+    HAL_GPIO_Init(hw.sclPort, &gpio);
+    gpio.Pin = hw.sdaPin;
+    HAL_GPIO_Init(hw.sdaPort, &gpio);
+
+    HAL_GPIO_WritePin(hw.sclPort, hw.sclPin, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(hw.sdaPort, hw.sdaPin, GPIO_PIN_SET);
+    i2cBusDelay();
+
+    // If a slave holds SDA low, clock SCL up to 9 times so it releases it.
+    for(uint8_t i = 0; i < 9; i++)
+    {
+        if(HAL_GPIO_ReadPin(hw.sdaPort, hw.sdaPin) == GPIO_PIN_SET)
+            break;
+
+        HAL_GPIO_WritePin(hw.sclPort, hw.sclPin, GPIO_PIN_RESET);
+        i2cBusDelay();
+        HAL_GPIO_WritePin(hw.sclPort, hw.sclPin, GPIO_PIN_SET);
+        i2cBusDelay();
+    }
+
+    // Manual STOP condition: SDA low-to-high while SCL is high.
+    HAL_GPIO_WritePin(hw.sdaPort, hw.sdaPin, GPIO_PIN_RESET);
+    i2cBusDelay();
+    HAL_GPIO_WritePin(hw.sclPort, hw.sclPin, GPIO_PIN_SET);
+    i2cBusDelay();
+    HAL_GPIO_WritePin(hw.sdaPort, hw.sdaPin, GPIO_PIN_SET);
+    i2cBusDelay();
+}
+
+void I2cBus::resetBus()
+{
+    // Full bus recovery WITHOUT an MCU reset. Used when the peripheral gets stuck
+    // (BUSY/BERR latched) or a slave holds SDA.
+    disableInterrupts();
+    LL_I2C_Disable(instance);
+
+    recoverBus();      // free the lines via bit-bang (SCL + STOP)
+    initGpio();        // pins back to I2C alternate-function
+    initInstance();    // LL_I2C_DeInit (RCC reset, clears BUSY) + reconfigure + enable
+    enableInterrupts();
+
+    currentIndex = 0;
+    currentTransaction = nullptr;
+    state = State::Idle;
+}
+
 void I2cBus::initGpio()
 {
-    uint32_t pinMaskA = 0;
-    uint32_t pinMaskB = 0;
+    const I2cBusHw& hw = i2cBusHw(bus);
+    hw.enableClocks();
 
-    uint32_t alternateFunction = 0;
+    // Per-pin alternate function (SCL and SDA may differ, see i2c_bus_hw.hpp).
+    // Internal pull-up as a bring-up safety net (~40k, weak): for reliable
+    // operation use external ~4.7k pull-ups to 3V3.
+    GPIO_InitTypeDef gpio = {};
+    gpio.Mode  = GPIO_MODE_AF_OD;
+    gpio.Pull  = GPIO_PULLUP;
+    gpio.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
 
-    switch(bus)
-    {
-        case Selection::Bus1:
-            __HAL_RCC_I2C1_CLK_ENABLE();
+    gpio.Pin = hw.sclPin;
+    gpio.Alternate = hw.sclAf;
+    HAL_GPIO_Init(hw.sclPort, &gpio);
 
-            pinMaskB = GPIO_PIN_6 | GPIO_PIN_7;
-            alternateFunction = GPIO_AF4_I2C1;
-            break;
-        case Selection::Bus2:
-            __HAL_RCC_I2C2_CLK_ENABLE();
-
-            pinMaskB = GPIO_PIN_3 | GPIO_PIN_10;
-            alternateFunction = GPIO_AF4_I2C2;
-            break;
-        case Selection::Bus3:
-            __HAL_RCC_I2C3_CLK_ENABLE();
-
-            pinMaskA = GPIO_PIN_8;
-            pinMaskB = GPIO_PIN_4;
-            alternateFunction = GPIO_AF4_I2C3;
-            break;
-    }
-
-    __HAL_RCC_GPIOB_CLK_ENABLE();
-
-    GPIO_InitTypeDef GPIO_InitStruct = {
-        .Pin = pinMaskB,
-        .Mode = GPIO_MODE_AF_OD,
-        .Pull = GPIO_NOPULL,
-        .Speed = GPIO_SPEED_FREQ_VERY_HIGH,
-        .Alternate = alternateFunction
-    };
-
-    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-    if(pinMaskA)
-    {
-        __HAL_RCC_GPIOA_CLK_ENABLE();
-
-        GPIO_InitStruct.Pin = pinMaskA;
-        HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-    }
+    gpio.Pin = hw.sdaPin;
+    gpio.Alternate = hw.sdaAf;
+    HAL_GPIO_Init(hw.sdaPort, &gpio);
 }
 
 void I2cBus::deinitGpio()
 {
-    switch (bus)
-    {
-        case Selection::Bus1:
-            HAL_GPIO_DeInit(GPIOB, GPIO_PIN_6 | GPIO_PIN_7);
-            break;
-        case Selection::Bus2:
-            HAL_GPIO_DeInit(GPIOB, GPIO_PIN_3 | GPIO_PIN_10);
-            break;
-        case Selection::Bus3:
-            HAL_GPIO_DeInit(GPIOA, GPIO_PIN_8);
-            HAL_GPIO_DeInit(GPIOB, GPIO_PIN_4);
-            break;
-    }
+    const I2cBusHw& hw = i2cBusHw(bus);
+    HAL_GPIO_DeInit(hw.sclPort, hw.sclPin);
+    HAL_GPIO_DeInit(hw.sdaPort, hw.sdaPin);
 }
 
 void I2cBus::enableInterrupts()
 {
-    IRQn_Type eventInterrupt;
-    IRQn_Type errorInterrupt;
-
-    switch(bus)
-    {
-        case Selection::Bus1:
-            eventInterrupt = I2C1_EV_IRQn;
-            errorInterrupt = I2C1_ER_IRQn;
-            break;
-        case Selection::Bus2:
-            eventInterrupt = I2C2_EV_IRQn;
-            errorInterrupt = I2C2_ER_IRQn;
-            break;
-        case Selection::Bus3:
-            eventInterrupt = I2C3_EV_IRQn;
-            errorInterrupt = I2C3_ER_IRQn;
-            break;
-    }
+    const I2cBusHw& hw = i2cBusHw(bus);
 
     LL_I2C_EnableIT_EVT(this->instance);
     LL_I2C_EnableIT_ERR(this->instance);
 
-    NVIC_SetPriority(eventInterrupt, I2C_EVENT_IRQ_PRIORITY);
-    NVIC_SetPriority(errorInterrupt, I2C_ERROR_IRQ_PRIORITY);
-    NVIC_EnableIRQ(eventInterrupt);
-    NVIC_EnableIRQ(errorInterrupt);
+    NVIC_SetPriority(hw.evIrq, I2C_EVENT_IRQ_PRIORITY);
+    NVIC_SetPriority(hw.erIrq, I2C_ERROR_IRQ_PRIORITY);
+    NVIC_EnableIRQ(hw.evIrq);
+    NVIC_EnableIRQ(hw.erIrq);
 }
 
 void I2cBus::disableInterrupts()
 {
-    IRQn_Type eventInterrupt;
-    IRQn_Type errorInterrupt;
-
-    switch(bus)
-    {
-        case Selection::Bus1:
-            eventInterrupt = I2C1_EV_IRQn;
-            errorInterrupt = I2C1_ER_IRQn;
-            break;
-        case Selection::Bus2:
-            eventInterrupt = I2C2_EV_IRQn;
-            errorInterrupt = I2C2_ER_IRQn;
-            break;
-        case Selection::Bus3:
-            eventInterrupt = I2C3_EV_IRQn;
-            errorInterrupt = I2C3_ER_IRQn;
-            break;
-    }
-
-    NVIC_DisableIRQ(eventInterrupt);
-    NVIC_DisableIRQ(errorInterrupt);
+    const I2cBusHw& hw = i2cBusHw(bus);
+    NVIC_DisableIRQ(hw.evIrq);
+    NVIC_DisableIRQ(hw.erIrq);
 }
 
 void I2cBus::attachDevice(I2cDevice& device)
@@ -440,16 +420,8 @@ void I2cBus::detachDevice(I2cDevice& device)
 
 uint16_t I2cBus::getBusDriverNumber(Selection bus)
 {
-    switch(bus)
-    {
-        case Selection::Bus1:
-            return 0;
-        case Selection::Bus2:
-            return 1;
-        case Selection::Bus3:
-            return 2;
-    }
-    return 0;
+    // Selection enum values are the driver-array indices (Bus1=0, Bus2=1, Bus3=2).
+    return static_cast<uint16_t>(bus);
 }
 
 I2cBus::~I2cBus()
