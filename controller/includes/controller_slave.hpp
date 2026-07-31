@@ -1,193 +1,136 @@
 #pragma once
 
 #include <stdint.h>
+#include <span>
 #include "i2c_slave.hpp"
+#include "register_bank.hpp"
 
 // ============================================================================
-// ControllerSlave — implementacion GENERICA del protocolo de registros/mailbox
-// (contraparte STM32 del ControllerLink del ESP32). No conoce ningun comando
-// concreto: la semantica la provee un RequestHandler inyectado.
+// ControllerSlave — slave-side register/mailbox protocol over I2C. Command
+// semantics come from an injected RequestHandler; this class only moves bytes.
 //
-// Reparto de responsabilidades:
-//   - Esta clase (ISR O(1)): puntero de registro, registros inmediatos, buffer
-//     de request (inbox) / response (outbox), FSM de status. Solo mueve bytes.
-//   - RequestHandler (main loop): dado (cmd, payload) produce la respuesta. Aca
-//     viven los comandos de la aplicacion (login, mediciones, etc.).
+// Responsibility split:
+//   - This class (ISR, O(1)): register pointer, request (inbox)/response (outbox)
+//     buffers, status FSM. Immediate reads are served from a shared RegisterBank.
+//   - RequestHandler (main loop): given (cmd, payload) it produces the response.
 //
-// Protocolo (compatible con controller_link):
+// Protocol:
 //   0x10 (W): request  [cmd][len][payload]
 //   0x11 (R): response [status][len][data][filler]   status: 0 Idle,1 Proc,2 Ready,3 Err
-//   resto de direcciones (R): registros inmediatos pre-cargados por la app.
+//   any other address (R): immediate registers from the shared RegisterBank.
 //
-// Ver docs/protocol-design.md.
+// A read-only instance ignores writes to the request register (it still lets a
+// master select a register pointer to read).
 // ============================================================================
 class ControllerSlave : public I2cSlave
 {
     public:
-        // Interfaz de la semantica de comandos. La implementa la aplicacion.
-        // Corre siempre en el main loop (via process()), nunca en la ISR.
+        // Response built by a RequestHandler. Wraps the caller's buffer (no
+        // allocation, no ownership); tracks how much was written and whether the
+        // command failed. The error code is an opaque byte defined by the section.
+        class Response
+        {
+            public:
+                Response(uint8_t* buffer, uint8_t capacity)
+                    : buffer(buffer), capacity(capacity) {}
+
+                // Append data (bounds-checked, little-endian; a write that would
+                // overflow the buffer is dropped whole).
+                void put(uint8_t byte);
+                void put(const uint8_t* data, uint8_t length);
+                void put(std::span<const uint8_t> data);
+                void putU16(uint16_t value);
+                void putU64(uint64_t value);
+
+                // Mark the command as failed; the payload becomes the error code byte.
+                void fail(uint8_t errorCode);
+
+                bool    isError() const { return error; }
+                uint8_t length()  const { return len; }
+
+            private:
+                uint8_t* buffer;
+                uint8_t  capacity;
+                uint8_t  len   = 0;
+                bool     error = false;
+        };
+
+        // A request handed to a RequestHandler: the command + payload, plus access
+        // to the response (a writer over the controller's internal buffer).
+        class Request
+        {
+            public:
+                Request(uint8_t cmd, std::span<const uint8_t> payload, Response& response)
+                    : cmd_(cmd), payload_(payload), response_(response) {}
+
+                uint8_t                  cmd()      const { return cmd_; }
+                std::span<const uint8_t> payload()  const { return payload_; }
+
+                // Response writer, over the controller's internal buffer.
+                Response&                response() const { return response_; }
+
+            private:
+                uint8_t                  cmd_;
+                std::span<const uint8_t> payload_;
+                Response&                response_;
+        };
+
+        // Command semantics interface, implemented by the application. Always
+        // runs in the main loop (via process()), never in the ISR.
         class RequestHandler
         {
             public:
                 virtual ~RequestHandler() = default;
 
-                // Procesa un request. Escribe hasta maxLen bytes de respuesta en `resp`
-                // y devuelve cuantos escribio. Setea isError=true para reportar error
-                // (por convencion `resp` lleva un mensaje ASCII).
-                virtual uint8_t handle(uint8_t cmd,
-                                       const uint8_t* payload, uint8_t payloadLen,
-                                       uint8_t* resp, uint8_t maxLen,
-                                       bool& isError) = 0;
+                // Processes the request and builds its response.
+                virtual void handle(Request request) = 0;
         };
 
-        static constexpr uint8_t MAX_PAYLOAD = 64;   // request/response payload maximo
-        static constexpr uint8_t REG_COUNT   = 64;   // espacio de registros inmediatos (0x00..0x3F)
+        static constexpr uint8_t MAX_PAYLOAD = 64;   // max request/response payload
 
-        // Registros reservados por el protocolo (no usar para datos inmediatos).
+        // Registers reserved by the protocol (do not use for immediate data).
         static constexpr uint8_t REG_REQUEST  = 0x10;
         static constexpr uint8_t REG_RESPONSE = 0x11;
 
-        explicit ControllerSlave(RequestHandler& handler) : handler(handler) {}
+        // `readOnly` instances (e.g. a monitoring peer) ignore requests: they can
+        // only read the bank.
+        ControllerSlave(RequestHandler& handler, RegisterBank& bank, bool readOnly = false)
+            : handler(handler), bank(bank), readOnly(readOnly) {}
 
-        // ================= ISR-side (llamados desde la interrupcion) =================
+        // ================= ISR-side (called from the interrupt) =================
+        void onAddressMatch(Direction direction) override;
+        void onWriteByte(const uint8_t data) override;
+        uint8_t onReadByte() override;
+        void onEndTransaction() override;
+        void onError() override;
 
-        void onAddressMatch(Direction direction) override
-        {
-            byteIndex = 0;
-            readingResponse = false;
-            if(direction == Direction::RX)
-                pointerSet = false;   // fase de escritura: primero llega el puntero de registro
-        }
-
-        void onWriteByte(const uint8_t data) override
-        {
-            if(!pointerSet)
-            {
-                regPointer = data;
-                pointerSet = true;
-                byteIndex = 0;
-                writingRequest = (regPointer == REG_REQUEST);
-                if(writingRequest)
-                    inboxLen = 0;
-                return;
-            }
-
-            if(writingRequest && inboxLen < sizeof(inbox))
-                inbox[inboxLen++] = data;
-            // escrituras a registros de solo-lectura: se ignoran
-        }
-
-        uint8_t onReadByte() override
-        {
-            const uint16_t i = byteIndex++;
-
-            if(regPointer == REG_RESPONSE)               // 0x11: [status][len][data][filler]
-            {
-                readingResponse = true;
-                if(i == 0) return cmdStatus;
-                if(i == 1) return respLen;
-                if(i >= 2 && (i - 2) < respLen) return respData[i - 2];
-                return 0x00;                             // filler
-            }
-
-            const uint16_t idx = regPointer + i;         // registros inmediatos
-            return (idx < REG_COUNT) ? registers[idx] : 0x00;
-        }
-
-        void onEndTransaction() override
-        {
-            if(writingRequest)
-            {
-                writingRequest = false;
-                // Request completo -> pedir procesamiento, salvo que ya haya uno en curso (F5).
-                if(inboxLen >= 2 && cmdStatus != Processing)
-                {
-                    requestPending = true;
-                    cmdStatus = Processing;
-                }
-            }
-            else if(readingResponse && (cmdStatus == Ready || cmdStatus == Error))
-            {
-                // El master leyo la respuesta -> la lectura es el ack: volver a Idle.
-                cmdStatus = Idle;
-            }
-
-            pointerSet = false;
-            writingRequest = false;
-            readingResponse = false;
-            byteIndex = 0;
-        }
-
-        void onError() override
-        {
-            if(writingRequest && cmdStatus != Processing)
-                inboxLen = 0;   // descartar request parcial
-            pointerSet = false;
-            writingRequest = false;
-            readingResponse = false;
-            byteIndex = 0;
-        }
-
-        // ===================== Main-loop side =====================
-
-        // Procesa el request pendiente delegando en el RequestHandler. Llamar en el loop.
-        void process()
-        {
-            if(!requestPending)
-                return;
-            requestPending = false;
-
-            const uint8_t cmd         = inbox[0];
-            const uint8_t declaredLen = inbox[1];
-            const uint8_t availLen    = (inboxLen >= 2) ? (uint8_t)(inboxLen - 2) : 0;
-            const uint8_t payloadLen  = (declaredLen <= availLen) ? declaredLen : availLen;
-
-            bool isError = false;
-            uint8_t n = handler.handle(cmd, &inbox[2], payloadLen,
-                                       respData, MAX_PAYLOAD, isError);
-            if(n > MAX_PAYLOAD)
-                n = MAX_PAYLOAD;
-
-            publishBarrier();           // respData/respLen visibles ANTES de publicar el status
-            respLen   = n;
-            cmdStatus = isError ? Error : Ready;
-        }
-
-        // --- API de registros inmediatos (la app los pre-carga desde el main loop) ---
-        void setRegister(uint8_t addr, uint8_t value)
-        {
-            if(addr < REG_COUNT)
-                registers[addr] = value;
-        }
-
-        void writeRegisters(uint8_t addr, const uint8_t* src, uint8_t len)
-        {
-            for(uint8_t i = 0; i < len && (addr + i) < REG_COUNT; i++)
-                registers[addr + i] = src[i];
-        }
+        // ========================= Main-loop side ==============================
+        // Processes the pending request by delegating to the RequestHandler.
+        void process();
 
     protected:
-        enum Status : uint8_t { Idle = 0, Processing = 1, Ready = 2, Error = 3 };
+        enum class Status : uint8_t { Idle = 0, Processing = 1, Ready = 2, Error = 3 };
 
         RequestHandler& handler;
+        RegisterBank&   bank;
+        bool            readOnly;
 
-        // --- Mailbox (compartido ISR <-> main loop) ---
-        volatile uint8_t  cmdStatus = Idle;              // byte 0 de la respuesta 0x11
+        // --- Mailbox (shared ISR <-> main loop) ---
+        volatile Status   cmdStatus = Status::Idle;      // byte 0 of the 0x11 response
         volatile uint8_t  respLen   = 0;
         uint8_t  respData[MAX_PAYLOAD] = {};
-        uint8_t  inbox[2 + MAX_PAYLOAD] = {};             // [cmd][len][payload]
+        uint8_t  inbox[2 + MAX_PAYLOAD] = {};            // [cmd][len][payload]
         volatile uint16_t inboxLen = 0;
         volatile bool     requestPending = false;
-        uint8_t  registers[REG_COUNT] = {};               // registros inmediatos
 
-        // --- Estado por-transaccion (solo ISR) ---
+        // --- Per-transaction state (ISR only) ---
         uint8_t  regPointer = 0;
         bool     pointerSet = false;
         bool     writingRequest = false;
         bool     readingResponse = false;
         uint16_t byteIndex = 0;
 
-        // Barrera de compilador: en Cortex-M monocore alcanza para ordenar la publicacion
-        // del outbox antes del status.
-        static inline void publishBarrier() { asm volatile("" ::: "memory"); }
+        // Compiler barrier: on a single-core Cortex-M it is enough to order the
+        // publication of the outbox before the status.
+        static void publishBarrier() { asm volatile("" ::: "memory"); }
 };
