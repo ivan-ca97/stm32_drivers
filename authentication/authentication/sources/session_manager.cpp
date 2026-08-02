@@ -11,6 +11,12 @@ ResultSession SessionManager::validate(Session::TokenType token)
     if(it == sessions.end())
         return Error(AuthenticationError::InvalidToken);
 
+    if((*it)->isExpired(clock->getTime()))
+    {
+        (*it)->expire();
+        return Error(AuthenticationError::InvalidToken);
+    }
+
     return *it;
 }
 
@@ -30,13 +36,14 @@ ResultSession SessionManager::createSession(const User& user)
     if(!session)
         return Error(AuthenticationError::SessionBufferFull);
 
-    session->start(user, sessionValiditySeconds, clock->getTime());
+    session->start(user, sessionValiditySeconds, clock->getTime(), tokenGenerator->next());
     return session;
 }
 
 Session* SessionManager::getFreeSession()
 {
-    auto findLambda = [&](const Session* session) {return session->isExpired();};
+    auto now = clock->getTime();
+    auto findLambda = [&](const Session* session) {return session->isExpired(now);};
     auto it = std::find_if(sessions.begin(), sessions.end(), findLambda);
 
     if(it == sessions.end())
@@ -79,6 +86,6 @@ bool SessionManager::hasSession(const User& user) const
     return getSession(user) != nullptr;
 }
 
-SessionManager::SessionManager(std::span<Session*> sessionsStorage, const Clock& clock)
-    : sessions(sessionsStorage), clock(&clock)
+SessionManager::SessionManager(std::span<Session*> sessionsStorage, const Clock& clock, TokenGenerator& tokenGenerator)
+    : sessions(sessionsStorage), clock(&clock), tokenGenerator(&tokenGenerator)
 {}

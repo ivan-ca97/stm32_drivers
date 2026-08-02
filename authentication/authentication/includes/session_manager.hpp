@@ -4,13 +4,22 @@
 
 #include "authentication_errors.hpp"
 
+// Injected time source. The physical clock (SysTick / RTC / timer) is provided by
+// the application; this component only depends on the interface.
 class Clock
 {
     public:
-        uint32_t getTime() const
-        {
-            return 1;
-        }
+        virtual ~Clock() = default;
+        virtual uint32_t getTime() const = 0;
+};
+
+// Injected session-token source. The entropy (HW RNG / chip UID + counter / ...) is
+// provided by the application; this component only depends on the interface.
+class TokenGenerator
+{
+    public:
+        virtual ~TokenGenerator() = default;
+        virtual Session::TokenType next() = 0;
 };
 
 using ResultSession = Result<const Session*>;
@@ -18,7 +27,7 @@ using ResultSession = Result<const Session*>;
 class SessionManager
 {
     public:
-        SessionManager(std::span<Session*> sessionsStorage, const Clock& clock);
+        SessionManager(std::span<Session*> sessionsStorage, const Clock& clock, TokenGenerator& tokenGenerator);
 
         ResultSession validate(Session::TokenType token);
 
@@ -36,6 +45,7 @@ class SessionManager
         std::span<Session*> sessions;
 
         const Clock* clock;
+        TokenGenerator* tokenGenerator;
 
         uint32_t sessionValiditySeconds = 3600;
 
@@ -52,8 +62,8 @@ class StaticSessionManager : public SessionManager
         std::array<Session*, SessionAmount> sessionPointers;
 
     public:
-        StaticSessionManager(const Clock& clock)
-            : SessionManager(sessionPointers, clock)
+        StaticSessionManager(const Clock& clock, TokenGenerator& tokenGenerator)
+            : SessionManager(sessionPointers, clock, tokenGenerator)
         {
             for (size_t i = 0; i < SessionAmount; i++)
                 sessionPointers[i] = &sessionStorage[i];

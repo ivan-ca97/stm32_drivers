@@ -16,3 +16,7 @@ target_compile_options(authentication PUBLIC
 target_include_directories(authentication PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/includes
 )
+
+target_link_libraries(authentication PUBLIC
+    persistent_storage
+)

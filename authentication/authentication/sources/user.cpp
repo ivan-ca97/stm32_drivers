@@ -102,6 +102,8 @@ ResultVoid User::setUsername(std::string_view newUsername)
     auto set = setString(newUsername, username);
     if(!set)
         return Error(AuthenticationError::UsernameBufferOverflow);
+
+    return {};
 }
 
 ResultVoid User::setPassword(std::string_view newPassword)
@@ -109,6 +111,8 @@ ResultVoid User::setPassword(std::string_view newPassword)
     auto set = setString(newPassword, password);
     if(!set)
         return Error(AuthenticationError::PasswordBufferOverflow);
+
+    return {};
 }
 
 ResultVoid User::setName(std::string_view newName)
@@ -116,6 +120,8 @@ ResultVoid User::setName(std::string_view newName)
     auto set = setString(newName, name);
     if(!set)
         return Error(AuthenticationError::NameBufferOverflow);
+
+    return {};
 }
 
 void User::setId(User::IdType newId)
@@ -141,6 +147,8 @@ ResultVoid User::setBufferedFields(std::string_view username, std::string_view p
     set = setName(name);
     if(!set)
         return Error(set.error());
+
+    return {};
 }
 
 void User::makeValid()
@@ -167,6 +175,7 @@ ResultVoid User::setString(std::string_view stringValue, std::span<char> storage
 
     std::copy(stringValue.begin(), stringValue.end(), storage.begin());
     storage[stringValue.length()] = '\0';
+    return {};
 }
 
 std::string_view User::getString(std::span<char> storage)

@@ -104,13 +104,11 @@ ResultVoid Authentication::modifyOwnUsername(Session::TokenType token, std::stri
     if(!session)
         return Error(session.error());
 
-    User updatedUser = *(*session)->getUser();
+    const User* user = (*session)->getUser();
+    if(!user)
+        return Error(AuthenticationError::IntegrityFailure);
 
-    auto updated = updatedUser.setUsername(newUsername);
-    if(!updated)
-        return Error(updated.error());
-
-    return userManager->updateUser(updatedUser);
+    return userManager->setUsername(user->getId(), newUsername);
 }
 
 ResultVoid Authentication::modifyOwnPassword(Session::TokenType token, std::string_view oldPassword, std::string_view newPassword)
@@ -119,16 +117,14 @@ ResultVoid Authentication::modifyOwnPassword(Session::TokenType token, std::stri
     if(!session)
         return Error(session.error());
 
-    User updatedUser = *(*session)->getUser();
+    const User* user = (*session)->getUser();
+    if(!user)
+        return Error(AuthenticationError::IntegrityFailure);
 
-    if(!updatedUser.authenticate(oldPassword))
+    if(!user->authenticate(oldPassword))
         return Error(AuthenticationError::IncorrectPassword);
 
-    auto updated = updatedUser.setPassword(newPassword);
-    if(!updated)
-        return Error(updated.error());
-
-    return userManager->updateUser(updatedUser);
+    return userManager->setPassword(user->getId(), newPassword);
 }
 
 ResultVoid Authentication::modifyOwnName(Session::TokenType token, std::string_view newName)
@@ -141,13 +137,7 @@ ResultVoid Authentication::modifyOwnName(Session::TokenType token, std::string_v
     if(!user)
         return Error(AuthenticationError::IntegrityFailure);
 
-    User updatedUser = *user;
-
-    auto updated = updatedUser.setName(newName);
-    if(!updated)
-        return Error(updated.error());
-
-    return userManager->updateUser(updatedUser);
+    return userManager->setName(user->getId(), newName);
 }
 
 
@@ -157,17 +147,7 @@ ResultVoid Authentication::modifyUsername(Session::TokenType token, User::IdType
     if(!session)
         return Error(session.error());
 
-    auto user = userManager->getUser(id);
-    if(!user)
-        return Error(AuthenticationError::IntegrityFailure);
-
-    User updatedUser = **user;
-
-    auto updated = updatedUser.setUsername(newUsername);
-    if(!updated)
-        return Error(updated.error());
-
-    return userManager->updateUser(updatedUser);
+    return userManager->setUsername(id, newUsername);
 }
 
 ResultVoid Authentication::modifyPassword(Session::TokenType token, User::IdType id, std::string_view newPassword)
@@ -176,17 +156,7 @@ ResultVoid Authentication::modifyPassword(Session::TokenType token, User::IdType
     if(!session)
         return Error(session.error());
 
-    auto user = userManager->getUser(id);
-    if(!user)
-        return Error(AuthenticationError::IntegrityFailure);
-
-    User updatedUser = **user;
-
-    auto updated = updatedUser.setPassword(newPassword);
-    if(!updated)
-        return Error(updated.error());
-
-    return userManager->updateUser(updatedUser);
+    return userManager->setPassword(id, newPassword);
 }
 
 ResultVoid Authentication::modifyName(Session::TokenType token, User::IdType id, std::string_view newName)
@@ -195,17 +165,7 @@ ResultVoid Authentication::modifyName(Session::TokenType token, User::IdType id,
     if(!session)
         return Error(session.error());
 
-    auto user = userManager->getUser(id);
-    if(!user)
-        return Error(AuthenticationError::IntegrityFailure);
-
-    User updatedUser = **user;
-
-    auto updated = updatedUser.setName(newName);
-    if(!updated)
-        return Error(updated.error());
-
-    return userManager->updateUser(updatedUser);
+    return userManager->setName(id, newName);
 }
 
 ResultVoid Authentication::modifyPermission(Session::TokenType token, User::IdType id, Permission newPermission)
@@ -214,13 +174,5 @@ ResultVoid Authentication::modifyPermission(Session::TokenType token, User::IdTy
     if(!session)
         return Error(session.error());
 
-    auto user = userManager->getUser(id);
-    if(!user)
-        return Error(AuthenticationError::IntegrityFailure);
-
-    User updatedUser = **user;
-
-    updatedUser.setPermission(newPermission);
-
-    return userManager->updateUser(updatedUser);
+    return userManager->setPermission(id, newPermission);
 }

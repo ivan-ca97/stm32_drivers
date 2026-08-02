@@ -1,20 +1,10 @@
 #include "session.hpp"
 
-#include <random>
-
-Session::Session(const User& user, uint32_t validitySeconds, uint32_t currentTime)
-{
-    start(user, validitySeconds, currentTime);
-}
-
-void Session::start(const User& user, uint32_t validitySeconds, uint32_t currentTime)
+void Session::start(const User& user, uint32_t validitySeconds, uint32_t currentTime, TokenType token)
 {
     this->user = &user;
     expireTime = currentTime + validitySeconds;
-
-    static std::mt19937_64 rng{std::random_device{}()};
-    std::uniform_int_distribution<TokenType> dist;
-    token = dist(rng);
+    this->token = token;
 }
 
 const User* Session::getUser() const
@@ -27,14 +17,17 @@ Session::TokenType Session::getToken() const
     return token;
 }
 
-bool Session::isExpired() const
+bool Session::isExpired(uint32_t currentTime) const
 {
-    return !expireTime || !user || !token;
+    // A slot is expired if it was never started/was cleared (user/token/expireTime
+    // zeroed) or its validity has elapsed. expireTime == 0 falls into currentTime
+    // >= expireTime, so a cleared slot always reads as expired.
+    return !user || !token || currentTime >= expireTime;
 }
 
 void Session::update(uint32_t currentTime)
 {
-    if(currentTime < expireTime)
+    if(isExpired(currentTime))
         expire();
 }
 
