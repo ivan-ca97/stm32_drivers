@@ -9,9 +9,12 @@ project(stm32_drivers LANGUAGES CXX)
 add_subdirectory(lib/custom_exception)
 add_subdirectory(lib/queue)
 add_subdirectory(lib/set)
+add_subdirectory(lib/result)
 add_subdirectory(drivers/timer)
 add_subdirectory(drivers/i2c)
 add_subdirectory(drivers/flash)
+add_subdirectory(drivers/adc)
+add_subdirectory(drivers/ads1115)
 add_subdirectory(persistence)
 add_subdirectory(controller)
 add_subdirectory(authentication)
@@ -23,6 +26,7 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
     timer_driver
     i2c_driver
     flash_driver
+    ads1115_driver
     flash_store
     authentication
     controller
