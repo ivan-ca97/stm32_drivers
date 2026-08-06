@@ -13,6 +13,8 @@ add_subdirectory(lib/result)
 add_subdirectory(drivers/timer)
 add_subdirectory(drivers/i2c)
 add_subdirectory(drivers/flash)
+add_subdirectory(drivers/gpio)
+add_subdirectory(drivers/watchdog)
 add_subdirectory(drivers/adc)
 add_subdirectory(drivers/ads1115)
 add_subdirectory(persistence)
@@ -26,6 +28,8 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
     timer_driver
     i2c_driver
     flash_driver
+    gpio_driver
+    watchdog_driver
     ads1115_driver
     flash_store
     authentication
