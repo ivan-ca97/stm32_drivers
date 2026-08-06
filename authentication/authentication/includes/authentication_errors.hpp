@@ -1,7 +1,6 @@
 #pragma once
 
-#include <expected>
-#include <optional>
+#include "result.hpp"
 
 enum class AuthenticationError
 {
@@ -26,15 +25,8 @@ enum class AuthenticationError
 };
 
 template <typename T>
-class [[nodiscard]] Result : public std::expected<T, AuthenticationError>
-{
-    using std::expected<T, AuthenticationError>::expected;
-};
+using Result = lib::Result<T, AuthenticationError>;
 
 using ResultVoid = Result<void>;
 
-template <typename E>
-constexpr auto Error(E e)
-{
-    return std::unexpected(e);
-}
+using lib::Error;

@@ -272,7 +272,8 @@ void UserManager::deserialize(const uint8_t* buf, uint32_t len)
 
         slot->setPermission(perm);
         slot->setId(id);
-        slot->setBufferedFields(fields[0], fields[1], fields[2]);
+        if(!slot->setBufferedFields(fields[0], fields[1], fields[2]))
+            return;   // corrupt persisted record
         slot->makeValid();
 
         loadedUsers++;
