@@ -42,6 +42,19 @@ is **written only by the main loop**; readers only read. Deferred commands that 
 sees the same thing. And since the **only writer is the main loop**, the concurrency discipline
 becomes simple (§9).
 
+### Windows: who may write where
+
+The bank is one flat space, but its writers are independent. Each one takes a **window** — a
+bounded view `[base, base+length)` — and publishes at window-local offsets; a write outside it is
+dropped, so a writer cannot reach another's registers. Readers still see the whole bank: the
+window scopes writing, not reading.
+
+Bounding each writer to its own span only means something if the spans cannot overlap, so a
+window is **claimed from the bank**, never constructed directly. The bank keeps the reservations
+and refuses one that collides with a span already handed out — the same treatment opcode ranges
+get from the router (§5). A bad base is then a start-up failure instead of two writers silently
+corrupting each other.
+
 ---
 
 ## 4. Instances & read-only mode

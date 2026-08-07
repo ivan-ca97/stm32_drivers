@@ -16,4 +16,5 @@ target_include_directories(controller PUBLIC
 
 target_link_libraries(controller PUBLIC
     i2c_driver
+    result
 )

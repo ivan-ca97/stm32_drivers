@@ -1,21 +1,24 @@
 #pragma once
 
 #include <stdint.h>
+
 #include "register_bank.hpp"
 
-// ============================================================================
-// RegisterWindow — a bounded, write-protected view over a RegisterBank. A section
+// RegisterWindow — a bounded, write-protected view over a RegisterBank. A writer
 // gets a window [base, base+length) and publishes with window-local offsets; a
-// write outside the window is dropped, so a section cannot clobber another
-// section's registers. The master still reads the whole bank; the window only
-// scopes what a section writes (and, since a section holds only its window, what
-// it can address at all).
-// ============================================================================
+// write outside the window is dropped, so one writer cannot clobber another's
+// registers. The master still reads the whole bank; the window only scopes what a
+// writer publishes into (and, since it holds only its window, what it can address).
+//
+// A window is obtained by claiming its span from the bank, never built directly:
+// bounding a writer to its own span is pointless if two spans can overlap.
 class RegisterWindow
 {
     public:
-        RegisterWindow(RegisterBank& bank, uint8_t base, uint8_t length)
-            : bank(bank), base(base), length(length) {}
+        using ClaimResult = lib::Result<RegisterWindow, RegisterBank::ReserveError>;
+
+        // Reserve [base, base+length) in the bank and return the view over it.
+        static ClaimResult claim(RegisterBank& bank, uint8_t base, uint8_t length);
 
         // Read within the window (offset local to the window).
         uint8_t read(uint8_t offset) const
@@ -30,7 +33,10 @@ class RegisterWindow
         uint8_t size() const { return length; }
 
     private:
+        RegisterWindow(RegisterBank& bank, uint8_t base, uint8_t length)
+            : bank(bank), base(base), length(length) {}
+
         RegisterBank& bank;
-        uint8_t       base;
-        uint8_t       length;
+        uint8_t base;
+        uint8_t length;
 };
