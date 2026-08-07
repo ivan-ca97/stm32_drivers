@@ -20,16 +20,16 @@ void MeasurementPublisher::publish(const ReactorMeasurements& m)
     // seqlock: mark the window busy (odd), write the data, then publish the new
     // stable version (even). The master reads seq -> data -> seq and retries if
     // seq changed or is odd.
-    sequence++;                                     // -> odd
+    sequence++;   // -> odd
     window.setRegister(measurements::SequenceOffset, sequence);
     barrier();
 
     writeFloat(measurements::ReactivityLogarithmicOffset, m.reactivityLogarithmic);
-    writeFloat(measurements::ReactivityLinearOffset,      m.reactivityLinear);
-    writeFloat(measurements::PowerRateLogarithmicOffset,  m.powerRateLogarithmic);
-    writeFloat(measurements::PowerRateLinearOffset,       m.powerRateLinear);
+    writeFloat(measurements::ReactivityLinearOffset, m.reactivityLinear);
+    writeFloat(measurements::PowerRateLogarithmicOffset, m.powerRateLogarithmic);
+    writeFloat(measurements::PowerRateLinearOffset, m.powerRateLinear);
     barrier();
 
-    sequence++;                                     // -> even
+    sequence++;   // -> even
     window.setRegister(measurements::SequenceOffset, sequence);
 }

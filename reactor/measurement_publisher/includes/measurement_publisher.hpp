@@ -17,7 +17,7 @@ class MeasurementPublisher
 
     protected:
         RegisterWindow& window;
-        uint8_t         sequence = 0;   // seqlock counter (even = stable, odd = writing)
+        uint8_t sequence = 0;   // seqlock counter (even = stable, odd = writing)
 
         void writeFloat(uint8_t offset, float value);
 };

@@ -21,10 +21,10 @@ class RegisterBank
     public:
         enum class ReserveError : uint8_t
         {
-            OutOfBank,       // the span does not fit in the register space
-            EmptySpan,       // zero-length reservation
-            Overlap,         // collides with a span already reserved
-            TooManyWindows,  // reservation table is full
+            OutOfBank,   // the span does not fit in the register space
+            EmptySpan,   // zero-length reservation
+            Overlap,   // collides with a span already reserved
+            TooManyWindows,   // reservation table is full
         };
 
         using ReserveResult = lib::Result<void, ReserveError>;

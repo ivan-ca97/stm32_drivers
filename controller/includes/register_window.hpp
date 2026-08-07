@@ -10,8 +10,7 @@
 // registers. The master still reads the whole bank; the window only scopes what a
 // writer publishes into (and, since it holds only its window, what it can address).
 //
-// A window is obtained by claiming its span from the bank, never built directly:
-// bounding a writer to its own span is pointless if two spans can overlap.
+// A window is obtained by claiming its span from the bank.
 class RegisterWindow
 {
     public:
