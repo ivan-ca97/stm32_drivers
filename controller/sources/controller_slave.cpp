@@ -36,16 +36,16 @@ uint8_t ControllerSlave::onReadByte()
 {
     const uint16_t i = byteIndex++;
 
-    if(regPointer == REG_RESPONSE)               // 0x11: [status][len][data][filler]
+    if(regPointer == REG_RESPONSE)   // [status][len][data][filler]
     {
         readingResponse = true;
         if(i == 0) return static_cast<uint8_t>(cmdStatus);
         if(i == 1) return respLen;
         if(i >= 2 && (i - 2) < respLen) return respData[i - 2];
-        return 0x00;                             // filler
+        return 0x00;   // filler
     }
 
-    return bank.read(regPointer + i);            // immediate registers
+    return bank.read(regPointer + i);   // immediate registers
 }
 
 void ControllerSlave::onEndTransaction()
@@ -102,7 +102,7 @@ void ControllerSlave::process()
     Request request(cmd, payload, response);
     handler.handle(request);
 
-    publishBarrier();           // respData/respLen visible BEFORE publishing the status
+    publishBarrier();   // respData/respLen visible BEFORE publishing the status
     respLen   = response.length();
     cmdStatus = response.isError() ? Status::Error : Status::Ready;
 }

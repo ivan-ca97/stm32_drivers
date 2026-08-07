@@ -103,8 +103,8 @@ Each section is **independent and testable** on its own.
 The master learns its result is ready via the **status byte** of the response mailbox:
 
 ```
-master writes request (0x10) → status = Processing
-master polls status (0x11)   ← Processing...
+master writes request (0x7E) → status = Processing
+master polls status (0x7F)   ← Processing...
 main loop finishes           → status = Ready | Error
 master reads response        ← [status][len][data]
 the read = ACK               → status back to Idle

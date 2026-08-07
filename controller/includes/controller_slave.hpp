@@ -14,9 +14,9 @@
 //     buffers, status FSM. Immediate reads are served from a shared RegisterBank.
 //   - RequestHandler (main loop): given (cmd, payload) it produces the response.
 //
-// Protocol:
-//   0x10 (W): request  [cmd][len][payload]
-//   0x11 (R): response [status][len][data][filler]   status: 0 Idle,1 Proc,2 Ready,3 Err
+// Protocol (mailbox registers at the top of the range, out of the data path):
+//   0x7E (W): request  [cmd][len][payload]
+//   0x7F (R): response [status][len][data][filler]   status: 0 Idle,1 Proc,2 Ready,3 Err
 //   any other address (R): immediate registers from the shared RegisterBank.
 //
 // A read-only instance ignores writes to the request register (it still lets a
@@ -89,8 +89,9 @@ class ControllerSlave : public I2cSlave
         static constexpr uint8_t MAX_PAYLOAD = 64;   // max request/response payload
 
         // Registers reserved by the protocol (do not use for immediate data).
-        static constexpr uint8_t REG_REQUEST  = 0x10;
-        static constexpr uint8_t REG_RESPONSE = 0x11;
+        // At the top of the range so they stay out of the data path.
+        static constexpr uint8_t REG_REQUEST  = 0x7E;
+        static constexpr uint8_t REG_RESPONSE = 0x7F;
 
         // `readOnly` instances (e.g. a monitoring peer) ignore requests: they can
         // only read the bank.
@@ -116,10 +117,10 @@ class ControllerSlave : public I2cSlave
         bool            readOnly;
 
         // --- Mailbox (shared ISR <-> main loop) ---
-        volatile Status   cmdStatus = Status::Idle;      // byte 0 of the 0x11 response
+        volatile Status   cmdStatus = Status::Idle;   // byte 0 of the response
         volatile uint8_t  respLen   = 0;
         uint8_t  respData[MAX_PAYLOAD] = {};
-        uint8_t  inbox[2 + MAX_PAYLOAD] = {};            // [cmd][len][payload]
+        uint8_t  inbox[2 + MAX_PAYLOAD] = {};   // [cmd][len][payload]
         volatile uint16_t inboxLen = 0;
         volatile bool     requestPending = false;
 
