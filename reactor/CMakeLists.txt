@@ -6,11 +6,12 @@ project(reactor LANGUAGES CXX)
 add_subdirectory(reactor_parameters)
 add_subdirectory(reactor_measurements)
 
-# Wire contract, owned by neither of its users.
+# Wire contract, owned by neither of its consumers.
 add_subdirectory(measurement_map)
 
 add_subdirectory(parameter_command_handler)
 add_subdirectory(measurement_publisher)
+add_subdirectory(peer_measurement_reader)
 
 target_link_libraries(${CMAKE_PROJECT_NAME}
     parameter_command_handler
