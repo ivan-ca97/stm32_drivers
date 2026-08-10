@@ -11,5 +11,6 @@ target_include_directories(measurement_publisher PUBLIC
 
 target_link_libraries(measurement_publisher PUBLIC
     reactor_measurements
+    measurement_map
     controller
 )

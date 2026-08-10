@@ -3,8 +3,7 @@
 #include <stdint.h>
 
 // Register layout of the measurement window: where each value sits and how it is
-// encoded. The master reads these registers directly, so this is a wire contract —
-// a change here has to be mirrored on the other side.
+// encoded. The master reads these registers directly.
 namespace measurements
 {
     // Window-local offsets. Values are float32, little-endian.

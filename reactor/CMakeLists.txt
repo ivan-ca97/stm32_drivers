@@ -6,6 +6,9 @@ project(reactor LANGUAGES CXX)
 add_subdirectory(reactor_parameters)
 add_subdirectory(reactor_measurements)
 
+# Wire contract, owned by neither of its users.
+add_subdirectory(measurement_map)
+
 add_subdirectory(parameter_command_handler)
 add_subdirectory(measurement_publisher)
 
