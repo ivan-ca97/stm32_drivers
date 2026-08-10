@@ -7,9 +7,14 @@
 #include "authentication.hpp"   // token validation
 #include "persistent_storage.hpp"   // persistence
 
-// The model and the wire contract each declare the group count independently, so
-// that neither has to include the other. This catches them drifting apart.
+// The wire's ParamId list is built from the model's NeutronGroups, but laid out by
+// hand; this catches the two shapes drifting apart if a param is added to one and
+// not the other.
 static_assert(ReactorParams::Count == param::ParamCount, "param model / wire count mismatch");
+
+// TokenSize is a wire constant (auth_commands.hpp declares the same value
+// independently), not a derived one.
+static_assert(param::TokenSize == sizeof(Session::TokenType), "wire token size does not match Session::TokenType");
 
 // ParameterHandler — the parameter section (SetParam). Validates the token
 // (>= Maintenance) and the value, updates the typed ReactorParameters (the source

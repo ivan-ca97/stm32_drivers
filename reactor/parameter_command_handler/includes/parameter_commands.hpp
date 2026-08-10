@@ -2,11 +2,14 @@
 
 #include <stdint.h>
 
+#include "reactor_parameters.hpp"   // NeutronGroups: shared with the calibration model
+
 // Parameter section — wire contract. A change here has to be mirrored on the
 // master's side.
 //
 // Reads:  calibration parameters are immediate bank reads, float32 little-endian,
-//         each at a fixed offset (see paramOffset). No command involved.
+//         each at a fixed offset within the section's register window (see
+//         docs/protocol-design.md for the assigned base).
 // Writes: deferred command SetParam, routed to the parameter section.
 //
 //   SetParam request: [cmd=0x80][token(8)][paramId(1)][value(4 = float32 LE)]
@@ -20,16 +23,11 @@ namespace param
         CmdSetParam = 0x80,
     };
 
-    // Opcode range this section claims in the router.
-    static constexpr uint8_t CmdRangeLow = 0x80;
-    static constexpr uint8_t CmdRangeHigh = 0xEF;
-
     static constexpr uint8_t TokenSize = 8;
     static constexpr uint8_t ValueSize = 4;   // float32, little-endian
 
     // Flat paramId ordinal. Group-indexed params (beta, lambda) occupy
-    // consecutive ids. Fixed 6 neutron groups for now.
-    static constexpr uint8_t NeutronGroups = 6;
+    // consecutive ids.
     enum ParamId : uint8_t
     {
         ParamNeutronFractionBase = 0,   // 0..5   beta_i
@@ -44,16 +42,8 @@ namespace param
         ParamCount   // 19
     };
 
-    // Bank layout: each param is a float32 at WindowBase + paramId*ValueSize.
-    // paramOffset is the global address the master reads.
-    static constexpr uint8_t WindowBase = 0x20;
+    // Window length; the base is assigned where the window is claimed.
     static constexpr uint8_t WindowLength = ParamCount * ValueSize;
-
-    // Global read address for the master (window base + window-local offset).
-    constexpr uint8_t paramOffset(uint8_t paramId)
-    {
-        return WindowBase + paramId * ValueSize;
-    }
 
     // Error codes returned in the response payload on failure.
     enum ErrorCode : uint8_t
