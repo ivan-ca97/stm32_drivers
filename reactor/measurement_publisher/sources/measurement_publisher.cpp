@@ -8,7 +8,7 @@ namespace
     inline void barrier() { asm volatile("" ::: "memory"); }
 }
 
-void MeasurementPublisher::writeFloat(uint8_t offset, float value)
+void MeasurementPublisher::writeFloat(uint8_t offset, ReactorMeasurements::ValueType value)
 {
     uint8_t bytes[measurements::FloatSize];
     std::memcpy(bytes, &value, sizeof(value));   // little-endian
@@ -17,9 +17,7 @@ void MeasurementPublisher::writeFloat(uint8_t offset, float value)
 
 void MeasurementPublisher::publish(const ReactorMeasurements& m)
 {
-    // seqlock: mark the window busy (odd), write the data, then publish the new
-    // stable version (even). The master reads seq -> data -> seq and retries if
-    // seq changed or is odd.
+    // The master reads seq -> data -> seq and retries if seq changed or is odd.
     sequence++;   // -> odd
     window.setRegister(measurements::SequenceOffset, sequence);
     barrier();

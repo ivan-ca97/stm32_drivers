@@ -13,12 +13,11 @@ namespace measurements
     static constexpr uint8_t PowerRateLogarithmicOffset = 0x0C;
     static constexpr uint8_t PowerRateLinearOffset = 0x10;
 
+    // The size on the wire, not the model's: widening the field is a protocol change,
+    // not a recompile. Consumers static_assert their value type against this.
     static constexpr uint8_t FloatSize = 4;
 
-    // Published fields end here. The rest of the window is already committed by the
-    // protocol to status/discrepancy registers (see docs/protocol-design.md), just
-    // not published yet.
-    static constexpr uint8_t UsedLength = PowerRateLinearOffset + FloatSize;
-    static constexpr uint8_t ReservedLength = 0x0C;
-    static constexpr uint8_t WindowLength = UsedLength + ReservedLength;
+    static constexpr uint8_t MeasurementsLength = PowerRateLinearOffset + FloatSize;
+    static constexpr uint8_t StatusLength = 0x0C;   // alarm / peer discrepancy flags
+    static constexpr uint8_t WindowLength = MeasurementsLength + StatusLength;
 }

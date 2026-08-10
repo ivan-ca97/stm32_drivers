@@ -4,10 +4,11 @@
 #include "reactor_measurements.hpp"
 #include "measurement_map.hpp"
 
+static_assert(sizeof(ReactorMeasurements::ValueType) == measurements::FloatSize,
+              "measurement value type does not match the size on the wire");
+
 // MeasurementPublisher — typed publisher for the measurement register window.
-// Writes the latest measurements with a seqlock (seq odd while writing, even when
-// stable) so the master reads a consistent snapshot and can tell whether the data
-// is new. The window scopes what it can write, the raw byte layout stays hidden.
+// Writes under a seqlock (see publish).
 class MeasurementPublisher
 {
     public:
@@ -19,5 +20,5 @@ class MeasurementPublisher
         RegisterWindow& window;
         uint8_t sequence = 0;   // seqlock counter (even = stable, odd = writing)
 
-        void writeFloat(uint8_t offset, float value);
+        void writeFloat(uint8_t offset, ReactorMeasurements::ValueType value);
 };

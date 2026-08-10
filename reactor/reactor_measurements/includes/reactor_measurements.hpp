@@ -2,8 +2,10 @@
 
 struct ReactorMeasurements
 {
-    float reactivityLogarithmic;
-    float reactivityLinear;
-    float powerRateLogarithmic;
-    float powerRateLinear;
+    using ValueType = float;
+
+    ValueType reactivityLogarithmic;
+    ValueType reactivityLinear;
+    ValueType powerRateLogarithmic;
+    ValueType powerRateLinear;
 };
