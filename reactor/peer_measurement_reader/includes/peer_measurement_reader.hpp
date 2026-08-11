@@ -24,7 +24,6 @@ class PeerMeasurementReader
             Failed,
         };
 
-        // Busy is the only way to fail to start: a base address is always valid.
         enum class StartError : uint8_t { Busy };
         using StartResult = lib::Result<void, StartError>;
 
