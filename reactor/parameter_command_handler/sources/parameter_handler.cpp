@@ -11,6 +11,12 @@ namespace
             value |= uint64_t(p[i]) << (8 * i);
         return value;
     }
+
+    ParameterHandler::Progress rejected(ControllerSlave::Response& response, uint8_t code)
+    {
+        response.fail(code);
+        return ParameterHandler::Progress::Done;
+    }
 }
 
 void ParameterHandler::mirror(uint8_t paramId, float value)
@@ -48,18 +54,18 @@ void ParameterHandler::load()
     }
 }
 
-void ParameterHandler::handle(ControllerSlave::Request request)
+ParameterHandler::Progress ParameterHandler::handle(ControllerSlave::Request request)
 {
     ControllerSlave::Response& response = request.response();
 
     if(request.cmd() != param::CmdSetParam)
-        return response.fail(param::ErrorMalformed);
+        return rejected(response, param::ErrorMalformed);
 
     // [token(8)][paramId(1)][value(4)]
     const auto payload = request.payload();
     constexpr uint8_t need = param::TokenSize + 1 + param::ValueSize;
     if(payload.size() < need)
-        return response.fail(param::ErrorMalformed);
+        return rejected(response, param::ErrorMalformed);
 
     const uint64_t token = readU64le(payload.data());
     const uint8_t paramId = payload[param::TokenSize];
@@ -67,16 +73,16 @@ void ParameterHandler::handle(ControllerSlave::Request request)
     std::memcpy(&value, &payload[param::TokenSize + 1], param::ValueSize);
 
     if(!validateToken(token))
-        return response.fail(param::ErrorInvalidToken);
+        return rejected(response, param::ErrorInvalidToken);
     if(paramId >= param::ParamCount)
-        return response.fail(param::ErrorInvalidParamId);
+        return rejected(response, param::ErrorInvalidParamId);
     if(!params.set(paramId, value))   // typed model validates the value
-        return response.fail(param::ErrorInvalidValue);
+        return rejected(response, param::ErrorInvalidValue);
 
     mirror(paramId, value);   // reflect into the master-facing bank
 
     if(!persist())
-        return response.fail(param::ErrorInternal);
+        return rejected(response, param::ErrorInternal);
 
     // Verify the mirror (read-back) matches what we stored.
     uint8_t expected[param::ValueSize];
@@ -84,7 +90,7 @@ void ParameterHandler::handle(ControllerSlave::Request request)
     const uint8_t offset = paramId * param::ValueSize;
     for(uint8_t i = 0; i < param::ValueSize; i++)
         if(window.read(offset + i) != expected[i])
-            return response.fail(param::ErrorVerifyFailed);
+            return rejected(response, param::ErrorVerifyFailed);
 
-    // Ready with an empty payload -> success.
+    return Progress::Done;   // Ready with an empty payload -> success
 }

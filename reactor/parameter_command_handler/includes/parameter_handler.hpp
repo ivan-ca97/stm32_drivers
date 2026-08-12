@@ -30,7 +30,7 @@ class ParameterHandler : public ControllerSlave::RequestHandler
             load();
         }
 
-        void handle(ControllerSlave::Request request) override;
+        Progress handle(ControllerSlave::Request request) override;
 
     protected:
         RegisterWindow& window;

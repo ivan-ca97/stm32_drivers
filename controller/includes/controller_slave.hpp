@@ -4,45 +4,43 @@
 #include <span>
 #include "i2c_slave.hpp"
 #include "register_bank.hpp"
+#include "clock.hpp"
 
-// ============================================================================
-// ControllerSlave — slave-side register/mailbox protocol over I2C. Command
-// semantics come from an injected RequestHandler; this class only moves bytes.
+// ControllerSlave — slave-side register/mailbox protocol over I2C. This class only
+// moves bytes; the command semantics come from an injected RequestHandler.
 //
-// Responsibility split:
-//   - This class (ISR, O(1)): register pointer, request (inbox)/response (outbox)
-//     buffers, status FSM. Immediate reads are served from a shared RegisterBank.
-//   - RequestHandler (main loop): given (cmd, payload) it produces the response.
+// Everything here runs in the ISR and stays O(1): the handler is called from the
+// main loop instead, so no command can stretch the bus.
 //
-// Protocol (mailbox registers at the top of the range, out of the data path):
 //   0x7E (W): request  [cmd][len][payload]
 //   0x7F (R): response [status][len][data][filler]   status: 0 Idle,1 Proc,2 Ready,3 Err
 //   any other address (R): immediate registers from the shared RegisterBank.
 //
+// One command at a time: a request is taken only with the mailbox Idle. A reply
+// nobody read yet also counts as busy, so a result is never discarded without the
+// master learning how its command went — reading it is the ack that frees the slot.
+//
 // A read-only instance ignores writes to the request register (it still lets a
 // master select a register pointer to read).
-// ============================================================================
 class ControllerSlave : public I2cSlave
 {
     public:
-        // Response built by a RequestHandler. Wraps the caller's buffer (no
-        // allocation, no ownership); tracks how much was written and whether the
-        // command failed. The error code is an opaque byte defined by the section.
+        // Response built by a RequestHandler over a buffer it does not own. The
+        // error code is an opaque byte, defined by each section.
         class Response
         {
             public:
                 Response(uint8_t* buffer, uint8_t capacity)
                     : buffer(buffer), capacity(capacity) {}
 
-                // Append data (bounds-checked, little-endian; a write that would
-                // overflow the buffer is dropped whole).
+                // Little-endian. A write that would overflow is dropped whole.
                 void put(uint8_t byte);
                 void put(const uint8_t* data, uint8_t length);
                 void put(std::span<const uint8_t> data);
                 void putU16(uint16_t value);
                 void putU64(uint64_t value);
 
-                // Mark the command as failed; the payload becomes the error code byte.
+                // Replaces the payload with the error code byte.
                 void fail(uint8_t errorCode);
 
                 bool    isError() const { return error; }
@@ -55,8 +53,6 @@ class ControllerSlave : public I2cSlave
                 bool     error = false;
         };
 
-        // A request handed to a RequestHandler: the command + payload, plus access
-        // to the response (a writer over the controller's internal buffer).
         class Request
         {
             public:
@@ -66,7 +62,6 @@ class ControllerSlave : public I2cSlave
                 uint8_t                  cmd()      const { return cmd_; }
                 std::span<const uint8_t> payload()  const { return payload_; }
 
-                // Response writer, over the controller's internal buffer.
                 Response&                response() const { return response_; }
 
             private:
@@ -75,38 +70,53 @@ class ControllerSlave : public I2cSlave
                 Response&                response_;
         };
 
-        // Command semantics interface, implemented by the application. Always
-        // runs in the main loop (via process()), never in the ISR.
+        // Implemented by the application. Runs in the main loop, never in the ISR.
         class RequestHandler
         {
             public:
+                // Pending keeps the status at Processing and hands the same request
+                // back next pass, so waiting on I/O does not block the loop.
+                enum class Progress : uint8_t { Done, Pending };
+
                 virtual ~RequestHandler() = default;
 
-                // Processes the request and builds its response.
-                virtual void handle(Request request) = 0;
+                // The response accumulates across calls, so a handler that defers may
+                // write it whenever it has something to say.
+                virtual Progress handle(Request request) = 0;
+
+                // Called instead of a further handle() once the command runs out of
+                // time: release anything in flight, nothing will read its result.
+                virtual void abandon() {}
         };
 
-        static constexpr uint8_t MAX_PAYLOAD = 64;   // max request/response payload
+        static constexpr uint8_t MAX_PAYLOAD = 64;
 
-        // Registers reserved by the protocol (do not use for immediate data).
-        // At the top of the range so they stay out of the data path.
+        // Reserved by the protocol; not available for immediate data.
         static constexpr uint8_t REG_REQUEST  = 0x7E;
         static constexpr uint8_t REG_RESPONSE = 0x7F;
 
-        // `readOnly` instances (e.g. a monitoring peer) ignore requests: they can
-        // only read the bank.
-        ControllerSlave(RequestHandler& handler, RegisterBank& bank, bool readOnly = false)
-            : handler(handler), bank(bank), readOnly(readOnly) {}
+        // Reserved by the transport: no section may define this value.
+        static constexpr uint8_t ErrorTimedOut = 0xFF;
 
-        // ================= ISR-side (called from the interrupt) =================
+        // Kept under the master's own timeout, so its retry finds the mailbox free
+        // instead of being turned away.
+        static constexpr uint32_t DefaultTimeoutMs = 1500;
+
+        // A `readOnly` instance (a monitoring peer) can only read the bank.
+        ControllerSlave(RequestHandler& handler, RegisterBank& bank, const Clock& clock,
+                        bool readOnly = false, uint32_t timeoutMs = DefaultTimeoutMs)
+            : handler(handler), bank(bank), clock(clock), readOnly(readOnly),
+              timeoutMs(timeoutMs) {}
+
+        // --- ISR side ---
         void onAddressMatch(Direction direction) override;
         void onWriteByte(const uint8_t data) override;
         uint8_t onReadByte() override;
         void onEndTransaction() override;
         void onError() override;
 
-        // ========================= Main-loop side ==============================
-        // Processes the pending request by delegating to the RequestHandler.
+        // --- Main-loop side ---
+        // Advances the command in flight, one pass per call.
         void process();
 
     protected:
@@ -114,7 +124,9 @@ class ControllerSlave : public I2cSlave
 
         RequestHandler& handler;
         RegisterBank&   bank;
+        const Clock&    clock;
         bool            readOnly;
+        uint32_t        timeoutMs;
 
         // --- Mailbox (shared ISR <-> main loop) ---
         volatile Status   cmdStatus = Status::Idle;   // byte 0 of the response
@@ -123,6 +135,11 @@ class ControllerSlave : public I2cSlave
         uint8_t  inbox[2 + MAX_PAYLOAD] = {};   // [cmd][len][payload]
         volatile uint16_t inboxLen = 0;
         volatile bool     requestPending = false;
+
+        // --- In-flight command (main loop only) ---
+        Response response{respData, MAX_PAYLOAD};   // accumulates across process() calls
+        bool     inFlight = false;
+        uint32_t startedMs = 0;
 
         // --- Per-transaction state (ISR only) ---
         uint8_t  regPointer = 0;

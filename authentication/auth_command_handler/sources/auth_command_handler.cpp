@@ -223,7 +223,7 @@ namespace
     }
 }
 
-void AuthCommandHandler::handle(ControllerSlave::Request request)
+AuthCommandHandler::Progress AuthCommandHandler::handle(ControllerSlave::Request request)
 {
     Reader r(request.payload());
     Response& response = request.response();
@@ -247,4 +247,6 @@ void AuthCommandHandler::handle(ControllerSlave::Request request)
 
         default:                         response.fail(auth::ErrUnknownCommand); break;
     }
+
+    return Progress::Done;   // every command above resolves in this one call
 }

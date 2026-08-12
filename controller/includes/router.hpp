@@ -21,7 +21,8 @@ class Router : public ControllerSlave::RequestHandler
         // Returns false if the table is full or the range is invalid.
         bool addSection(uint8_t low, uint8_t high, RequestHandler& handler);
 
-        void handle(ControllerSlave::Request request) override;
+        Progress handle(ControllerSlave::Request request) override;
+        void abandon() override;
 
     private:
         struct Section
@@ -34,4 +35,6 @@ class Router : public ControllerSlave::RequestHandler
         Section  sections[MAX_SECTIONS];
         uint8_t  count = 0;
         uint8_t  unknownCommandCode;
+
+        ControllerSlave::RequestHandler* deferredSection = nullptr;
 };

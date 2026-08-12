@@ -15,12 +15,28 @@ bool Router::addSection(uint8_t low, uint8_t high, RequestHandler& handler)
     return true;
 }
 
-void Router::handle(ControllerSlave::Request request)
+Router::Progress Router::handle(ControllerSlave::Request request)
 {
     const uint8_t cmd = request.cmd();
     for(uint8_t i = 0; i < count; i++)
-        if(cmd >= sections[i].low && cmd <= sections[i].high)
-            return sections[i].handler->handle(request);
+    {
+        if(cmd < sections[i].low || cmd > sections[i].high)
+            continue;
+
+        const Progress progress = sections[i].handler->handle(request);
+        deferredSection = (progress == Progress::Pending) ? sections[i].handler : nullptr;
+        return progress;
+    }
 
     request.response().fail(unknownCommandCode);
+    return Progress::Done;
+}
+
+void Router::abandon()
+{
+    if(deferredSection == nullptr)
+        return;
+
+    deferredSection->abandon();
+    deferredSection = nullptr;
 }

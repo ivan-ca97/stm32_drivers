@@ -17,11 +17,8 @@ void ControllerSlave::onWriteByte(const uint8_t data)
         regPointer = data;
         pointerSet = true;
         byteIndex = 0;
-        // Start buffering a request only if not read-only and no request is
-        // already in flight (single slot): a new request while busy is dropped,
-        // leaving the in-flight one intact.
-        const bool busy = requestPending || cmdStatus == Status::Processing;
-        writingRequest = (!readOnly && regPointer == REG_REQUEST && !busy);
+        writingRequest = (!readOnly && regPointer == REG_REQUEST
+                          && !requestPending && cmdStatus == Status::Idle);
         if(writingRequest)
             inboxLen = 0;
         return;
@@ -53,8 +50,9 @@ void ControllerSlave::onEndTransaction()
     if(writingRequest)
     {
         writingRequest = false;
-        // Request complete -> ask for processing, unless one is already running.
-        if(inboxLen >= 2 && cmdStatus != Status::Processing)
+        // Request complete -> ask for processing. Re-checked here because the
+        // mailbox may have been taken while the frame was still arriving.
+        if(inboxLen >= 2 && cmdStatus == Status::Idle)
         {
             requestPending = true;
             cmdStatus = Status::Processing;
@@ -87,20 +85,38 @@ void ControllerSlave::onError()
 
 void ControllerSlave::process()
 {
-    if(!requestPending)
-        return;
-    requestPending = false;
+    if(requestPending)
+    {
+        requestPending = false;
+        inFlight = true;
+        startedMs = clock.milliseconds();
+        response = Response(respData, MAX_PAYLOAD);
+    }
 
+    if(!inFlight)
+        return;
+
+    // The inbox stays put while a command is in flight: the ISR only takes a new
+    // request when the mailbox is Idle, so re-reading it every pass is safe.
     const uint8_t cmd         = inbox[0];
     const uint8_t declaredLen = inbox[1];
     const uint8_t availLen    = (inboxLen >= 2) ? (uint8_t)(inboxLen - 2) : 0;
     const uint8_t payloadLen  = (declaredLen <= availLen) ? declaredLen : availLen;
 
-    Response response(respData, MAX_PAYLOAD);
-
     std::span<const uint8_t> payload(&inbox[2], payloadLen);
     Request request(cmd, payload, response);
-    handler.handle(request);
+
+    if(handler.handle(request) == RequestHandler::Progress::Pending)
+    {
+        if(clock.millisecondsSince(startedMs) < timeoutMs)
+            return;   // still working, still within its budget
+
+        handler.abandon();
+        response = Response(respData, MAX_PAYLOAD);
+        response.fail(ErrorTimedOut);
+    }
+
+    inFlight = false;
 
     publishBarrier();   // respData/respLen visible BEFORE publishing the status
     respLen   = response.length();

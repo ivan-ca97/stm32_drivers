@@ -24,7 +24,7 @@ class AuthCommandHandler : public ControllerSlave::RequestHandler
         explicit AuthCommandHandler(Authentication& authentication)
             : authentication(authentication) {}
 
-        void handle(ControllerSlave::Request request) override;
+        Progress handle(ControllerSlave::Request request) override;
 
     protected:
         Authentication& authentication;
