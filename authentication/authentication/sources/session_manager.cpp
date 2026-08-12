@@ -11,7 +11,7 @@ ResultSession SessionManager::validate(Session::TokenType token)
     if(it == sessions.end())
         return Error(AuthenticationError::InvalidToken);
 
-    if((*it)->isExpired(clock->getTime()))
+    if((*it)->isExpired(clock->seconds()))
     {
         (*it)->expire();
         return Error(AuthenticationError::InvalidToken);
@@ -36,13 +36,13 @@ ResultSession SessionManager::createSession(const User& user)
     if(!session)
         return Error(AuthenticationError::SessionBufferFull);
 
-    session->start(user, sessionValiditySeconds, clock->getTime(), tokenGenerator->next());
+    session->start(user, sessionValiditySeconds, clock->seconds(), tokenGenerator->next());
     return session;
 }
 
 Session* SessionManager::getFreeSession()
 {
-    auto now = clock->getTime();
+    auto now = clock->seconds();
     auto findLambda = [&](const Session* session) {return session->isExpired(now);};
     auto it = std::find_if(sessions.begin(), sessions.end(), findLambda);
 
@@ -76,7 +76,7 @@ void SessionManager::expireSession(const Session& sessionToExpire)
 
 void SessionManager::updateSessions()
 {
-    auto time = clock->getTime();
+    auto time = clock->seconds();
     for(auto it = sessions.begin(); it != sessions.end(); it++)
         (*it)->update(time);
 }

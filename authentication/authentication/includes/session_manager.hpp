@@ -3,15 +3,7 @@
 #include "session.hpp"
 
 #include "authentication_errors.hpp"
-
-// Injected time source. The physical clock (SysTick / RTC / timer) is provided by
-// the application; this component only depends on the interface.
-class Clock
-{
-    public:
-        virtual ~Clock() = default;
-        virtual uint32_t getTime() const = 0;
-};
+#include "clock.hpp"
 
 // Injected session-token source. The entropy (HW RNG / chip UID + counter / ...) is
 // provided by the application; this component only depends on the interface.

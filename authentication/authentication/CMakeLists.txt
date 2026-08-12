@@ -20,4 +20,5 @@ target_include_directories(authentication PUBLIC
 target_link_libraries(authentication PUBLIC
     persistent_storage
     result
+    clock
 )
