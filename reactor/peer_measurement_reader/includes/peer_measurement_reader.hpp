@@ -19,7 +19,7 @@ class PeerMeasurementReader
         enum class Step : uint8_t
         {
             Idle,
-            Busy,       // read in progress
+            Busy,   // read in progress
             Completed,
             Failed,
         };

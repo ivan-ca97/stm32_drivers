@@ -98,10 +98,10 @@ void ControllerSlave::process()
 
     // The inbox stays put while a command is in flight: the ISR only takes a new
     // request when the mailbox is Idle, so re-reading it every pass is safe.
-    const uint8_t cmd         = inbox[0];
+    const uint8_t cmd = inbox[0];
     const uint8_t declaredLen = inbox[1];
-    const uint8_t availLen    = (inboxLen >= 2) ? (uint8_t)(inboxLen - 2) : 0;
-    const uint8_t payloadLen  = (declaredLen <= availLen) ? declaredLen : availLen;
+    const uint8_t availLen = (inboxLen >= 2) ? (uint8_t)(inboxLen - 2) : 0;
+    const uint8_t payloadLen = (declaredLen <= availLen) ? declaredLen : availLen;
 
     std::span<const uint8_t> payload(&inbox[2], payloadLen);
     Request request(cmd, payload, response);
@@ -119,7 +119,7 @@ void ControllerSlave::process()
     inFlight = false;
 
     publishBarrier();   // respData/respLen visible BEFORE publishing the status
-    respLen   = response.length();
+    respLen = response.length();
     cmdStatus = response.isError() ? Status::Error : Status::Ready;
 }
 
@@ -160,6 +160,6 @@ void ControllerSlave::Response::putU64(uint64_t value)
 void ControllerSlave::Response::fail(uint8_t errorCode)
 {
     error = true;
-    len   = 0;
+    len = 0;
     put(errorCode);
 }

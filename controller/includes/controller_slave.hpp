@@ -12,7 +12,7 @@
 // Everything here runs in the ISR and stays O(1): the handler is called from the
 // main loop instead, so no command can stretch the bus.
 //
-//   0x7E (W): request  [cmd][len][payload]
+//   0x7E (W): request [cmd][len][payload]
 //   0x7F (R): response [status][len][data][filler]   status: 0 Idle,1 Proc,2 Ready,3 Err
 //   any other address (R): immediate registers from the shared RegisterBank.
 //
@@ -43,14 +43,14 @@ class ControllerSlave : public I2cSlave
                 // Replaces the payload with the error code byte.
                 void fail(uint8_t errorCode);
 
-                bool    isError() const { return error; }
-                uint8_t length()  const { return len; }
+                bool isError() const { return error; }
+                uint8_t length() const { return len; }
 
             private:
                 uint8_t* buffer;
-                uint8_t  capacity;
-                uint8_t  len   = 0;
-                bool     error = false;
+                uint8_t capacity;
+                uint8_t len = 0;
+                bool error = false;
         };
 
         class Request
@@ -59,15 +59,15 @@ class ControllerSlave : public I2cSlave
                 Request(uint8_t cmd, std::span<const uint8_t> payload, Response& response)
                     : cmd_(cmd), payload_(payload), response_(response) {}
 
-                uint8_t                  cmd()      const { return cmd_; }
-                std::span<const uint8_t> payload()  const { return payload_; }
+                uint8_t cmd() const { return cmd_; }
+                std::span<const uint8_t> payload() const { return payload_; }
 
-                Response&                response() const { return response_; }
+                Response& response() const { return response_; }
 
             private:
-                uint8_t                  cmd_;
+                uint8_t cmd_;
                 std::span<const uint8_t> payload_;
-                Response&                response_;
+                Response& response_;
         };
 
         // Implemented by the application. Runs in the main loop, never in the ISR.
@@ -92,7 +92,7 @@ class ControllerSlave : public I2cSlave
         static constexpr uint8_t MAX_PAYLOAD = 64;
 
         // Reserved by the protocol; not available for immediate data.
-        static constexpr uint8_t REG_REQUEST  = 0x7E;
+        static constexpr uint8_t REG_REQUEST = 0x7E;
         static constexpr uint8_t REG_RESPONSE = 0x7F;
 
         // Reserved by the transport: no section may define this value.
@@ -123,29 +123,29 @@ class ControllerSlave : public I2cSlave
         enum class Status : uint8_t { Idle = 0, Processing = 1, Ready = 2, Error = 3 };
 
         RequestHandler& handler;
-        RegisterBank&   bank;
-        const Clock&    clock;
-        bool            readOnly;
-        uint32_t        timeoutMs;
+        RegisterBank& bank;
+        const Clock& clock;
+        bool readOnly;
+        uint32_t timeoutMs;
 
         // --- Mailbox (shared ISR <-> main loop) ---
-        volatile Status   cmdStatus = Status::Idle;   // byte 0 of the response
-        volatile uint8_t  respLen   = 0;
-        uint8_t  respData[MAX_PAYLOAD] = {};
-        uint8_t  inbox[2 + MAX_PAYLOAD] = {};   // [cmd][len][payload]
+        volatile Status cmdStatus = Status::Idle;   // byte 0 of the response
+        volatile uint8_t respLen = 0;
+        uint8_t respData[MAX_PAYLOAD] = {};
+        uint8_t inbox[2 + MAX_PAYLOAD] = {};   // [cmd][len][payload]
         volatile uint16_t inboxLen = 0;
-        volatile bool     requestPending = false;
+        volatile bool requestPending = false;
 
         // --- In-flight command (main loop only) ---
         Response response{respData, MAX_PAYLOAD};   // accumulates across process() calls
-        bool     inFlight = false;
+        bool inFlight = false;
         uint32_t startedMs = 0;
 
         // --- Per-transaction state (ISR only) ---
-        uint8_t  regPointer = 0;
-        bool     pointerSet = false;
-        bool     writingRequest = false;
-        bool     readingResponse = false;
+        uint8_t regPointer = 0;
+        bool pointerSet = false;
+        bool writingRequest = false;
+        bool readingResponse = false;
         uint16_t byteIndex = 0;
 
         // Compiler barrier: on a single-core Cortex-M it is enough to order the

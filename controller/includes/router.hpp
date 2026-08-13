@@ -2,11 +2,9 @@
 
 #include "controller_slave.hpp"   // ControllerSlave::RequestHandler, Response
 
-// ============================================================================
 // Router — a RequestHandler that dispatches each command to the section that
 // registered the opcode range covering it. Sections stay independent; the router
 // is the only piece that knows the opcode partition.
-// ============================================================================
 class Router : public ControllerSlave::RequestHandler
 {
     public:
@@ -27,14 +25,14 @@ class Router : public ControllerSlave::RequestHandler
     private:
         struct Section
         {
-            uint8_t                         low;
-            uint8_t                         high;
+            uint8_t low;
+            uint8_t high;
             ControllerSlave::RequestHandler* handler;
         };
 
-        Section  sections[MAX_SECTIONS];
-        uint8_t  count = 0;
-        uint8_t  unknownCommandCode;
+        Section sections[MAX_SECTIONS];
+        uint8_t count = 0;
+        uint8_t unknownCommandCode;
 
         ControllerSlave::RequestHandler* deferredSection = nullptr;
 };
