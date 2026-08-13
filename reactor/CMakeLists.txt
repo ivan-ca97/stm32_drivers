@@ -9,6 +9,7 @@ add_subdirectory(reactor_measurements)
 # Wire contract, owned by neither of its consumers.
 add_subdirectory(measurement_map)
 
+add_subdirectory(measurement_calculator)
 add_subdirectory(parameter_command_handler)
 add_subdirectory(measurement_publisher)
 add_subdirectory(peer_measurement_reader)
@@ -17,5 +18,6 @@ add_subdirectory(peer_monitor)
 target_link_libraries(${CMAKE_PROJECT_NAME}
     parameter_command_handler
     measurement_publisher
+    measurement_calculator
     peer_monitor
 )
