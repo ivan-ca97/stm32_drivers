@@ -42,3 +42,7 @@ I2cDevice& I2cDevice::operator<<(I2cTransaction& transaction)
     bus->setTransaction(transaction);
     return *this;
 }
+bool I2cDevice::cancel(I2cTransaction& transaction)
+{
+    return bus ? bus->cancel(transaction) : true;
+}

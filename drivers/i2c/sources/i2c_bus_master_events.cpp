@@ -49,7 +49,9 @@ bool I2cBus::sendSlaveAddress(bool readBit)
 
     address |= readBit;
 
-    this->currentTransaction->preCallback();
+    if(currentTransaction->getState() != I2cTransaction::CANCELLING)
+        this->currentTransaction->preCallback();
+
     LL_I2C_TransmitData8(instance, address);
 
     return true;
@@ -75,7 +77,9 @@ void I2cBus::prepareMasterRx(uint8_t remainingBytes)
 
 void I2cBus::finishCurrentTransaction(bool postCallback)
 {
-    if(postCallback)
+    if(currentTransaction->getState() == I2cTransaction::CANCELLING)
+        currentTransaction->setState(I2cTransaction::CANCELLED);
+    else if(postCallback)
     {
         currentTransaction->postCallback();
         currentTransaction->setState(I2cTransaction::FINISHED);
@@ -346,8 +350,16 @@ void I2cBus::errorCallback()
     // Master-side error with a transaction in progress
     LL_I2C_DisableIT_BUF(instance);
 
-    currentTransaction->setState(I2cTransaction::ERROR);
-    currentTransaction->errorCallback();
+    if(currentTransaction->getState() == I2cTransaction::CANCELLING)
+    {
+        currentTransaction->setState(I2cTransaction::CANCELLED);
+    }
+    else
+    {
+        currentTransaction->setState(I2cTransaction::ERROR);
+        currentTransaction->errorCallback();
+    }
+
     if(queue && queue->hasData())
         queue->dequeue();
     currentTransaction = nullptr;

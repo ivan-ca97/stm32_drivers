@@ -204,6 +204,12 @@ class I2cBus
         void prepareMasterRx(uint8_t remainingBytes);
         void finishCurrentTransaction(bool postCallback);
 
+        // Both answer whether the bus has let the transaction go. Separate because the
+        // mask does not nest: enabling on the way out of an inner call would unmask a
+        // caller that still needs it off.
+        bool cancel(I2cTransaction& transaction);
+        bool cancelUnguarded(I2cTransaction& transaction);
+
         void masterStateStartAttemp();
         void masterStateSendSlaveAddress();
         void masterStateSendRegister();

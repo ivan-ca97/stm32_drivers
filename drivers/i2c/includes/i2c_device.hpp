@@ -22,4 +22,9 @@ class I2cDevice
         void setTransaction(I2cTransaction& transaction);
 
         I2cDevice& operator<<(I2cTransaction& transaction);
+
+    protected:
+        bool cancel(I2cTransaction& transaction);
+
+    friend class I2cTransaction;
 };

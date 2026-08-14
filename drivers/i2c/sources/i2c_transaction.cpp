@@ -139,3 +139,13 @@ I2cTransaction I2cTransaction::Builder::build()
 {
     return transaction;
 }
+void I2cTransaction::cancel()
+{
+    if(!device)
+    {
+        state = CANCELLED;   // never queued anywhere
+        return;
+    }
+
+    device->cancel(*this);   // sets CANCELLED unless the bus is still holding it
+}

@@ -69,6 +69,46 @@ void I2cBus::setTransaction(I2cTransaction& transaction)
         sendNextTransaction();
 }
 
+bool I2cBus::cancelUnguarded(I2cTransaction& transaction)
+{
+    // Already going out on the wire: it cannot be recalled, only silenced. The mark
+    // goes on the transaction, so it travels with the object it describes instead of
+    // outliving it on the bus and silencing whatever comes next.
+    if(currentTransaction == &transaction && state != State::Idle)
+    {
+        transaction.setState(I2cTransaction::CANCELLING);
+        return false;
+    }
+
+    for(uint16_t i = static_cast<uint16_t>(queue->size()); i-- > 0; )
+    {
+        if(*queue->peek(i) != &transaction)
+            continue;
+
+        queue->dequeue(i);
+        if(currentTransaction == &transaction)
+            currentTransaction = nullptr;   // picked as next, never started
+
+        transaction.setState(I2cTransaction::CANCELLED);
+        return true;
+    }
+
+    return true;   // the bus never had it
+}
+
+bool I2cBus::cancel(I2cTransaction& transaction)
+{
+    // The queue and the current transaction are also the ISR's, and it can dequeue
+    // and start the next one between any two instructions here. Walking them
+    // unguarded would read past the end of the queue, or cancel whichever
+    // transaction the ISR had just promoted instead of the intended one.
+    disableInterrupts();
+    const bool released = cancelUnguarded(transaction);
+    enableInterrupts();
+
+    return released;
+}
+
 void I2cBus::eventCallback()
 {
     switch(state)
@@ -401,19 +441,30 @@ void I2cBus::attachDevice(I2cDevice& device)
 
 void I2cBus::detachDevice(I2cDevice& device)
 {
-    int length = static_cast<int>(queue->size());
-    for(auto i = length - 1; i >= 0; i--)
+    // Cancelling reshuffles the queue, so each pass restarts the search instead of
+    // trusting an index across it.
+    disableInterrupts();
+
+    for(bool cancelledOne = true; cancelledOne; )
     {
-        auto transaction = *queue->peek(i);
-        if(transaction->getAddress() == device.getAddress())
+        cancelledOne = false;
+
+        for(uint16_t i = static_cast<uint16_t>(queue->size()); i-- > 0; )
         {
-            // If the transaction to remove is the current one, stop it.
-            if(i == 0 && state != State::Idle)
-                finishCurrentTransaction(false);
-            else
-                queue->dequeue(i);
+            I2cTransaction* transaction = *queue->peek(i);
+            if(transaction->getAddress() != device.getAddress())
+                continue;
+
+            // A silenced one stays queued until it ends; keep looking past it.
+            if(!cancelUnguarded(*transaction))
+                continue;
+
+            cancelledOne = true;
+            break;
         }
     }
+
+    enableInterrupts();
 
     attachedDevices->remove(&device);
 }

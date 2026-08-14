@@ -25,6 +25,9 @@ class I2cTransaction
             EXCHANGING_DATA,
             FINISHED,
             ERROR,
+
+            CANCELLING,   // cancelled, but the bus still has it
+            CANCELLED,   // cancelled and let go: the caller's again
         };
 
         uint16_t getAddress();
@@ -59,10 +62,14 @@ class I2cTransaction
 
         void errorCallback();
 
+        // Give up on this transaction: its callbacks will not run. Watch the state for
+        // when the bus lets go.
+        void cancel();
+
     protected:
-        I2cDevice* device;
+        I2cDevice* device = nullptr;   // set when queued
         Direction direction;
-        State state;
+        State state = IDLE;
 
         uint8_t* data;
         uint16_t dataBytes;
