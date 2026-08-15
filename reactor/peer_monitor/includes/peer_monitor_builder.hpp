@@ -6,8 +6,10 @@ struct PeerMonitor::Config
 {
     public:
         I2cDevice* peer = nullptr;
+        const Clock* clock = nullptr;
         uint8_t peerWindowBase = 0;
         uint8_t maxConsecutiveFailures = 3;
+        uint32_t readTimeoutMs = 500;
         ReactorMeasurements::ValueType tolerance = 0;
 
     private:
@@ -22,16 +24,15 @@ class PeerMonitor::Builder
         Config config;
 
     public:
-        enum class BuildError : uint8_t { NoPeer };
-        using BuildResult = lib::Result<Config, BuildError>;
-
-        BuildResult buildConfig();
+        Config buildConfig();
 
         Builder& withPeer(I2cDevice& peer, uint8_t peerWindowBase);
 
-        // Failures in a row before the peer counts as unreachable.
+        Builder& withClock(const Clock& clock);
+
+        Builder& withReadTimeout(uint32_t readTimeoutMs);
+
         Builder& afterConsecutiveFailures(uint8_t maxConsecutiveFailures);
 
-        // How far the two boards' measurements may differ.
         Builder& withTolerance(ReactorMeasurements::ValueType tolerance);
 };

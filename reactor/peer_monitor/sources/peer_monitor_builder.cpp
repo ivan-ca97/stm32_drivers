@@ -1,10 +1,11 @@
 #include "peer_monitor_builder.hpp"
 
-PeerMonitor::Builder::BuildResult PeerMonitor::Builder::buildConfig()
-{
-    if(config.peer == nullptr)
-        return lib::Error(BuildError::NoPeer);
+#include <cassert>
 
+PeerMonitor::Config PeerMonitor::Builder::buildConfig()
+{
+    assert(config.peer);
+    assert(config.clock);
     return config;
 }
 
@@ -24,5 +25,17 @@ PeerMonitor::Builder& PeerMonitor::Builder::afterConsecutiveFailures(uint8_t max
 PeerMonitor::Builder& PeerMonitor::Builder::withTolerance(ReactorMeasurements::ValueType tolerance)
 {
     config.tolerance = tolerance;
+    return *this;
+}
+
+PeerMonitor::Builder& PeerMonitor::Builder::withClock(const Clock& clock)
+{
+    config.clock = &clock;
+    return *this;
+}
+
+PeerMonitor::Builder& PeerMonitor::Builder::withReadTimeout(uint32_t readTimeoutMs)
+{
+    config.readTimeoutMs = readTimeoutMs;
     return *this;
 }

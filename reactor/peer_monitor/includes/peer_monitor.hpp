@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 
+#include "clock.hpp"
 #include "peer_measurement_reader.hpp"
 #include "reactor_measurements.hpp"
 
@@ -29,11 +30,15 @@ class PeerMonitor
 
     protected:
         PeerMeasurementReader reader;
+        const Clock& clock;
         uint8_t maxConsecutiveFailures;
+        uint32_t readTimeoutMs;
         ReactorMeasurements::ValueType tolerance;
 
         uint8_t consecutiveFailures = 0;
         bool discrepancy = false;
+        uint32_t readStartedMs = 0;
 
+        void countFailure();
         bool withinTolerance(const ReactorMeasurements& a, const ReactorMeasurements& b) const;
 };

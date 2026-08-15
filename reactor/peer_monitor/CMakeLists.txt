@@ -13,4 +13,5 @@ target_include_directories(peer_monitor PUBLIC
 target_link_libraries(peer_monitor PUBLIC
     peer_measurement_reader
     reactor_measurements
+    clock
 )

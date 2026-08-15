@@ -3,9 +3,16 @@
 #include <cmath>
 
 PeerMonitor::PeerMonitor(const Config& config)
-    : reader(*config.peer, config.peerWindowBase),
+    : reader(*config.peer, config.peerWindowBase), clock(*config.clock),
       maxConsecutiveFailures(config.maxConsecutiveFailures),
+      readTimeoutMs(config.readTimeoutMs),
       tolerance(config.tolerance) {}
+
+void PeerMonitor::countFailure()
+{
+    if(consecutiveFailures < UINT8_MAX)
+        consecutiveFailures++;
+}
 
 void PeerMonitor::service(const ReactorMeasurements& local)
 {
@@ -21,8 +28,18 @@ void PeerMonitor::service(const ReactorMeasurements& local)
         }
 
         case PeerMeasurementReader::Step::Failed:
-            if(consecutiveFailures < UINT8_MAX)
-                consecutiveFailures++;
+            countFailure();
+            break;
+
+        case PeerMeasurementReader::Step::Busy:
+            if(clock.millisecondsSince(readStartedMs) < readTimeoutMs)
+                return;
+
+            // Abandoning only frees the reader once the bus lets go, so the clock
+            // restarts either way and one still held keeps failing at its own pace.
+            countFailure();
+            readStartedMs = clock.milliseconds();
+            reader.abandon();
             break;
 
         default:
@@ -30,7 +47,10 @@ void PeerMonitor::service(const ReactorMeasurements& local)
     }
 
     if(!reader.busy())
+    {
+        readStartedMs = clock.milliseconds();
         (void)reader.startRead();   // busy() just checked: cannot fail with StartError::Busy
+    }
 }
 
 bool PeerMonitor::withinTolerance(const ReactorMeasurements& a, const ReactorMeasurements& b) const

@@ -33,12 +33,18 @@ class PeerMeasurementReader
         PeerMeasurementReader(I2cDevice& peer, uint8_t windowBase)
             : peer(peer), windowBase(windowBase) {}
 
+        PeerMeasurementReader(const PeerMeasurementReader&) = delete;
+        PeerMeasurementReader& operator=(const PeerMeasurementReader&) = delete;
+
         StartResult startRead();
 
         bool busy() const { return phase != Phase::Idle; }
 
         // Non-blocking step.
         Step service();
+
+        // Ask to give up on the read. Stays busy() until the bus lets the transaction go.
+        void abandon();
 
         // The last snapshot read whole, or NoData until one has been: a peer that has
         // never answered must not read as a peer measuring zero.
@@ -75,6 +81,10 @@ class PeerMeasurementReader
         uint8_t seqByte = 0;
         uint8_t dataBytes[DataBlockSize] = {};
 
+        // Clear the read and report `step`.
+        Step finish(Step step);
+
+        void dispatchRead(uint8_t offset, uint8_t* buffer, uint16_t length);
         void dispatchSeqRead();
         void dispatchDataRead();
         void readFloat(uint8_t offset, ReactorMeasurements::ValueType& value) const;
