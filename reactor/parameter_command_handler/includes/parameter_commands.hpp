@@ -42,8 +42,8 @@ namespace param
         ParamCount   // 19
     };
 
-    // Window length; the base is assigned where the window is claimed.
-    static constexpr uint8_t WindowLength = ParamCount * ValueSize;
+    // How many bytes the whole set takes on the wire.
+    static constexpr uint8_t SerializedSize = ParamCount * ValueSize;
 
     // Error codes returned in the response payload on failure.
     enum ErrorCode : uint8_t
@@ -56,5 +56,6 @@ namespace param
         ErrorVerifyFailed = 0x84,   // read-back did not match
         ErrorInternal = 0x85,   // persistence backend error
         ErrorInvalidValue = 0x86,   // non-finite / rejected by the typed model
+        ErrorNotInMaintenance = 0x87,
     };
 }
