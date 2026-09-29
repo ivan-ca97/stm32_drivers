@@ -6,6 +6,7 @@ endif()
 
 project(stm32_drivers LANGUAGES CXX)
 
+add_subdirectory(base)
 add_subdirectory(lib/custom_exception)
 add_subdirectory(lib/queue)
 add_subdirectory(lib/set)
