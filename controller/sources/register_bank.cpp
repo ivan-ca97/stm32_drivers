@@ -15,11 +15,11 @@ void RegisterBank::writeRegisters(uint8_t addr, const uint8_t* src, uint8_t leng
 RegisterBank::ReserveResult RegisterBank::reserve(uint8_t base, uint8_t length)
 {
     if(length == 0)
-        return lib::Error(ReserveError::EmptySpan);
+        return std::unexpected(register_bank::emptySpan);
     if(uint16_t(base) + length > registers.size())
-        return lib::Error(ReserveError::OutOfBank);
+        return std::unexpected(register_bank::outOfBank);
     if(reservationCount >= reservations.size())
-        return lib::Error(ReserveError::TooManyWindows);
+        return std::unexpected(register_bank::tooManyWindows);
 
     // Interval intersection against every span already handed out.
     const uint16_t end = uint16_t(base) + length;
@@ -27,7 +27,7 @@ RegisterBank::ReserveResult RegisterBank::reserve(uint8_t base, uint8_t length)
     {
         const uint16_t otherEnd = uint16_t(reservations[i].base) + reservations[i].length;
         if(base < otherEnd && reservations[i].base < end)
-            return lib::Error(ReserveError::Overlap);
+            return std::unexpected(register_bank::overlap);
     }
 
     reservations[reservationCount++] = { base, length };

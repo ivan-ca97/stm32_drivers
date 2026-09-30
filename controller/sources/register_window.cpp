@@ -4,7 +4,7 @@ RegisterWindow::ClaimResult RegisterWindow::claim(RegisterBank& bank, uint8_t ba
 {
     auto reserved = bank.reserve(base, length);
     if(!reserved)
-        return lib::Error(reserved.error());
+        return std::unexpected(reserved.error());
 
     return RegisterWindow(bank, base, length);
 }

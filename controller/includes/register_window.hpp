@@ -14,7 +14,7 @@
 class RegisterWindow
 {
     public:
-        using ClaimResult = lib::Result<RegisterWindow, RegisterBank::ReserveError>;
+        using ClaimResult = base::Result<RegisterWindow>;
 
         // Reserve [base, base+length) in the bank and return the view over it.
         static ClaimResult claim(RegisterBank& bank, uint8_t base, uint8_t length);

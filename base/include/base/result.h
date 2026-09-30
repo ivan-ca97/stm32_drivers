@@ -13,8 +13,7 @@ class [[nodiscard]] Result : public std::expected<T, Error> {
 public:
     using std::expected<T, Error>::expected;
 
-    // and_then(), transform() and the other monadic operations return the plain
-    // std::expected.
+    // Converts what monadic operations return (a std::expected) back to a Result.
     constexpr Result(std::expected<T, Error> other)
         : std::expected<T, Error>(std::move(other))
     {

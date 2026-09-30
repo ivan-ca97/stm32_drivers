@@ -25,6 +25,12 @@ public:
 
     constexpr int code() const { return code_; }
 
+    // Whether code() is one of `category`'s, and so safe to cast to its enum.
+    constexpr bool belongsTo(const ErrorCategory& category) const
+    {
+        return category_ == &category;
+    }
+
     constexpr bool operator==(const Error&) const = default;
 
 private:

@@ -6,6 +6,8 @@
 #include "i2c_device.hpp"
 #include "i2c_transaction.hpp"
 #include "adc.hpp"
+#include "ads1115_error.hpp"
+#include "base/result.h"
 
 // ============================================================================
 // Ads1115 — 16-bit I2C ADC (4 single-ended channels), driven single-shot over an
@@ -59,9 +61,8 @@ class Ads1115 : public Adc
         // Single-ended inputs. Typed so a channel argument cannot be out of range.
         enum class Channel : uint8_t { Ain0, Ain1, Ain2, Ain3 };
 
-        // Busy is the only way to fail: a Channel is always valid.
-        enum class StartError : uint8_t { Busy };
-        using StartResult = lib::Result<void, StartError>;
+        // ads1115::busy is the only way to fail: a Channel is always valid.
+        using StartResult = base::Status;
 
         static constexpr uint8_t MaxChannels = 4;
 

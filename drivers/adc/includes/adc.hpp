@@ -2,7 +2,8 @@
 
 #include <stdint.h>
 
-#include "result.hpp"
+#include "adc_error.hpp"
+#include "base/result.h"
 
 // ============================================================================
 // Adc — multi-channel analog-to-digital converter interface.
@@ -17,14 +18,10 @@
 class Adc
 {
     public:
-        enum class Error
-        {
-            InvalidChannel,
-            NoData,   // never sampled, or the last sample no longer means anything
-        };
-
-        using Counts     = lib::Result<int16_t, Error>;
-        using MicroVolts = lib::Result<int32_t, Error>;
+        // Fail with one of adc's errors. noData: never sampled, or the last sample no
+        // longer means anything.
+        using Counts     = base::Result<int16_t>;
+        using MicroVolts = base::Result<int32_t>;
 
         virtual ~Adc() = default;
 
@@ -49,7 +46,7 @@ class Adc
         {
             auto counts = readLatestCounts(channel);
             if(!counts)
-                return lib::Error(counts.error());
+                return std::unexpected(counts.error());
 
             return static_cast<int32_t>(
                 static_cast<int64_t>(*counts) * fullScaleMicroVolts() / fullScaleCounts());

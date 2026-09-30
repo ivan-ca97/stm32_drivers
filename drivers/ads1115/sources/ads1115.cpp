@@ -24,7 +24,7 @@ float Ads1115::toVolts(int16_t raw) const
 Adc::Counts Ads1115::readLatestCounts(uint8_t channel) const
 {
     if(channel >= MaxChannels)
-        return lib::Error(Adc::Error::InvalidChannel);
+        return std::unexpected(adc::invalidChannel);
 
     return readLatestCounts(Channel(channel));
 }
@@ -34,7 +34,7 @@ Adc::Counts Ads1115::readLatestCounts(Channel channel) const
     const uint8_t index = uint8_t(channel);
 
     if((validChannels & (1u << index)) == 0)
-        return lib::Error(Adc::Error::NoData);
+        return std::unexpected(adc::noData);
 
     return static_cast<int16_t>(cache[index]);   // single aligned load; atomic w.r.t. the ISR writer
 }
@@ -61,7 +61,7 @@ void Ads1115::reset()
 Ads1115::StartResult Ads1115::startSample(Channel channel)
 {
     if(busy())
-        return lib::Error(StartError::Busy);
+        return std::unexpected(ads1115::busy);
 
     currentChannel = channel;
     sampleGain = gain;   // remembered so the result can be rejected if the gain changes mid-flight

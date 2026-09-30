@@ -6,5 +6,5 @@ target_include_directories(adc INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/includes
 )
 target_link_libraries(adc INTERFACE
-    result
+    base
 )

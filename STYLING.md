@@ -54,9 +54,11 @@ validates and returns `base::Result<T>`, with the object constructed inside it.
 Nothing is allocated, and the object never moves, so it can be registered by
 address with a bus or an interrupt.
 
-The constructor takes a `base::Passkey<Builder>` first. It has to be public for
-`std::expected` to reach it, and the passkey is what keeps anything but the
-builder from calling it. The type deletes copy and move.
+The constructor takes a `Permit` last, declared as
+`using Permit = base::Passkey<Builder>;` right after the builder. The
+constructor has to be public for `std::expected` to reach it, and the permit is
+what keeps anything but the builder from calling it. The type deletes copy and
+move.
 
 ```cpp
 base::Result<Ads1115> Ads1115::Builder::build() const
@@ -64,7 +66,7 @@ base::Result<Ads1115> Ads1115::Builder::build() const
     if (device_ == nullptr) {
         return std::unexpected(missingDevice);
     }
-    return base::Result<Ads1115>(std::in_place, base::Passkey<Builder>(), *device_);
+    return base::Result<Ads1115>(std::in_place, *device_, Permit{});
 }
 ```
 
@@ -160,6 +162,17 @@ base::Result<uint16_t> readRaw();
 // Not this:
 HAL_StatusTypeDef readRaw(uint16_t* out);
 ```
+
+Each component defines its errors in its own `error.h`: a `Code` enum, the
+`Category` that describes it, one `errorCategory` instance, and one
+`base::Error` constant per code. Call sites use the constant, never the code:
+
+```cpp
+return std::unexpected(adc::noData);
+```
+
+Decoding a code back to the enum is for a boundary that has to translate it,
+such as a wire protocol, and it checks `belongsTo(errorCategory)` first.
 
 ---
 
@@ -377,7 +390,7 @@ HAL_GPIO_Init(port, &(GPIO_InitTypeDef){...});
 
 ## 14. Type definition order
 
-Nested `Builder`, the passkey constructor and the deleted copy and move,
+Nested `Builder` and its `Permit`, the constructor and the deleted copy and move,
 destructor, public methods, then private helpers and data. This establishes a
 consistent reading order: how to create it, what it does, then how it is made.
 

@@ -4,7 +4,8 @@
 #include <array>
 #include <span>
 
-#include "result.hpp"
+#include "base/result.h"
+#include "register_bank_error.hpp"
 
 // RegisterBank — flat register space served for immediate (pre-loaded) reads.
 // Written by the main loop, read by the ISR. It can be shared by several
@@ -19,15 +20,8 @@
 class RegisterBank
 {
     public:
-        enum class ReserveError : uint8_t
-        {
-            OutOfBank,   // the span does not fit in the register space
-            EmptySpan,   // zero-length reservation
-            Overlap,   // collides with a span already reserved
-            TooManyWindows,   // reservation table is full
-        };
-
-        using ReserveResult = lib::Result<void, ReserveError>;
+        // Fails with one of register_bank's errors.
+        using ReserveResult = base::Status;
 
         struct Reservation
         {
