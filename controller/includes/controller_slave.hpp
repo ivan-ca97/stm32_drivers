@@ -108,6 +108,11 @@ class ControllerSlave : public I2cSlave
             : handler(handler), bank(bank), clock(clock), readOnly(readOnly),
               timeoutMs(timeoutMs) {}
 
+        // The bus holds this object's address once it is registered as a slave, and
+        // the response wraps a buffer inside it. Neither survives a move.
+        ControllerSlave(const ControllerSlave&) = delete;
+        ControllerSlave& operator=(const ControllerSlave&) = delete;
+
         // --- ISR side ---
         void onAddressMatch(Direction direction) override;
         void onWriteByte(const uint8_t data) override;
