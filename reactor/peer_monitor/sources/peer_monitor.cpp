@@ -49,7 +49,7 @@ void PeerMonitor::service(const ReactorMeasurements& local)
     if(!reader.busy())
     {
         readStartedMs = clock.milliseconds();
-        (void)reader.startRead();   // busy() just checked: cannot fail with StartError::Busy
+        (void)reader.startRead();   // busy() just checked: cannot fail with peer_measurement_reader::busy
     }
 }
 

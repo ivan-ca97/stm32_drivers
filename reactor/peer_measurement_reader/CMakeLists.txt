@@ -13,5 +13,5 @@ target_link_libraries(peer_measurement_reader PUBLIC
     reactor_measurements
     measurement_map
     i2c_driver
-    result
+    base
 )

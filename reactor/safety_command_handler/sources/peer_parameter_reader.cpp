@@ -5,7 +5,7 @@
 PeerParameterReader::StartResult PeerParameterReader::startRead()
 {
     if(busy())
-        return lib::Error(StartError::Busy);
+        return std::unexpected(peer_parameter_reader::busy);
 
     transactionFailed = false;
     transactionBusy = true;

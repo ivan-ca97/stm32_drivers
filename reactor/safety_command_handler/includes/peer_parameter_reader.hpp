@@ -4,7 +4,8 @@
 
 #include "i2c_device.hpp"
 #include "i2c_transaction.hpp"
-#include "result.hpp"
+#include "base/result.h"
+#include "peer_parameter_reader_error.hpp"
 #include "parameter_commands.hpp"
 #include "reactor_parameters.hpp"
 
@@ -24,16 +25,9 @@ class PeerParameterReader
             Failed,
         };
 
-        enum class StartError : uint8_t { Busy };
-        using StartResult = lib::Result<void, StartError>;
-
-        enum class SnapshotError : uint8_t
-        {
-            NoData,      // no read has completed yet
-            Malformed,   // what the peer published is not a valid parameter set
-        };
-
-        using SnapshotResult = lib::Result<ReactorParams, SnapshotError>;
+        // Fail with one of peer_parameter_reader's errors.
+        using StartResult = base::Status;
+        using SnapshotResult = base::Result<ReactorParams>;
 
         PeerParameterReader(I2cDevice& peer, uint8_t windowBase)
             : peer(peer), windowBase(windowBase) {}
@@ -52,7 +46,7 @@ class PeerParameterReader
         SnapshotResult latest() const
         {
             if(!snapshotValid)
-                return lib::Error(SnapshotError::NoData);
+                return std::unexpected(peer_parameter_reader::noData);
 
             return snapshot;
         }

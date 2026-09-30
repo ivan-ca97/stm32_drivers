@@ -15,5 +15,5 @@ target_link_libraries(safety_command_handler PUBLIC
     parameter_command_handler
     reactor_parameters
     i2c_driver
-    result
+    base
 )

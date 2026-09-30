@@ -5,7 +5,7 @@
 PeerMeasurementReader::StartResult PeerMeasurementReader::startRead()
 {
     if(busy())
-        return lib::Error(StartError::Busy);
+        return std::unexpected(peer_measurement_reader::busy);
 
     retries = 0;
     transactionFailed = false;

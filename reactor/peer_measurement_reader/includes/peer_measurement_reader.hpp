@@ -4,7 +4,8 @@
 
 #include "i2c_device.hpp"
 #include "i2c_transaction.hpp"
-#include "result.hpp"
+#include "base/result.h"
+#include "peer_measurement_reader_error.hpp"
 #include "reactor_measurements.hpp"
 #include "measurement_map.hpp"
 
@@ -24,11 +25,9 @@ class PeerMeasurementReader
             Failed,
         };
 
-        enum class StartError : uint8_t { Busy };
-        using StartResult = lib::Result<void, StartError>;
-
-        enum class SnapshotError : uint8_t { NoData };   // no read has completed yet
-        using SnapshotResult = lib::Result<ReactorMeasurements, SnapshotError>;
+        // Fail with one of peer_measurement_reader's errors.
+        using StartResult = base::Status;
+        using SnapshotResult = base::Result<ReactorMeasurements>;
 
         PeerMeasurementReader(I2cDevice& peer, uint8_t windowBase)
             : peer(peer), windowBase(windowBase) {}
@@ -51,7 +50,7 @@ class PeerMeasurementReader
         SnapshotResult latest() const
         {
             if(!snapshotValid)
-                return lib::Error(SnapshotError::NoData);
+                return std::unexpected(peer_measurement_reader::noData);
             return snapshot;
         }
 
