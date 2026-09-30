@@ -101,7 +101,7 @@ ResultVoid User::setUsername(std::string_view newUsername)
 {
     auto set = setString(newUsername, username);
     if(!set)
-        return Error(AuthenticationError::UsernameBufferOverflow);
+        return std::unexpected(authentication::usernameBufferOverflow);
 
     return {};
 }
@@ -110,7 +110,7 @@ ResultVoid User::setPassword(std::string_view newPassword)
 {
     auto set = setString(newPassword, password);
     if(!set)
-        return Error(AuthenticationError::PasswordBufferOverflow);
+        return std::unexpected(authentication::passwordBufferOverflow);
 
     return {};
 }
@@ -119,7 +119,7 @@ ResultVoid User::setName(std::string_view newName)
 {
     auto set = setString(newName, name);
     if(!set)
-        return Error(AuthenticationError::NameBufferOverflow);
+        return std::unexpected(authentication::nameBufferOverflow);
 
     return {};
 }
@@ -138,15 +138,15 @@ ResultVoid User::setBufferedFields(std::string_view username, std::string_view p
 {
     auto set = setUsername(username);
     if(!set)
-        return Error(set.error());
+        return std::unexpected(set.error());
 
     set = setPassword(password);
     if(!set)
-        return Error(set.error());
+        return std::unexpected(set.error());
 
     set = setName(name);
     if(!set)
-        return Error(set.error());
+        return std::unexpected(set.error());
 
     return {};
 }
@@ -171,7 +171,7 @@ void User::reset()
 ResultVoid User::setString(std::string_view stringValue, std::span<char> storage)
 {
     if(stringValue.length() >= storage.size())
-        return Error(AuthenticationError::Overflow);
+        return std::unexpected(authentication::overflow);
 
     std::copy(stringValue.begin(), stringValue.end(), storage.begin());
     storage[stringValue.length()] = '\0';

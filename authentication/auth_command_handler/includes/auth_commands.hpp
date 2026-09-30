@@ -74,7 +74,7 @@ namespace auth
 
     // Error code carried in the response payload when status == Error.
     // Explicit, stable values — do not reorder; append new codes at the end.
-    // 0x01..0x0E mirror AuthenticationError; 0x80+ are handler/framing level.
+    // 0x01..0x0E mirror authentication::Code; 0x80+ are handler/framing level.
     enum ErrorCode : uint8_t
     {
         ErrNone              = 0x00,

@@ -81,24 +81,27 @@ namespace
         }
     }
 
-    uint8_t errToWire(AuthenticationError e)
+    uint8_t errToWire(const base::Error& error)
     {
-        switch(e)
+        if(!error.belongsTo(authentication::errorCategory))
+            return auth::ErrInternal;
+
+        switch(static_cast<authentication::Code>(error.code()))
         {
-            case AuthenticationError::UserIdNotFound:          return auth::ErrUserIdNotFound;
-            case AuthenticationError::UsernameNotFound:        return auth::ErrUsernameNotFound;
-            case AuthenticationError::UsernameAlreadyExists:   return auth::ErrUsernameExists;
-            case AuthenticationError::InvalidToken:            return auth::ErrInvalidToken;
-            case AuthenticationError::InsufficientPermissions: return auth::ErrNoPermission;
-            case AuthenticationError::IncorrectPassword:       return auth::ErrIncorrectPassword;
-            case AuthenticationError::UsersBufferFull:         return auth::ErrUsersBufferFull;
-            case AuthenticationError::SessionBufferFull:       return auth::ErrSessionBufferFull;
-            case AuthenticationError::Overflow:                return auth::ErrOverflow;
-            case AuthenticationError::UsernameBufferOverflow:  return auth::ErrUsernameOverflow;
-            case AuthenticationError::NameBufferOverflow:      return auth::ErrNameOverflow;
-            case AuthenticationError::PasswordBufferOverflow:  return auth::ErrPasswordOverflow;
-            case AuthenticationError::EmptyMandatoryField:     return auth::ErrEmptyField;
-            case AuthenticationError::IntegrityFailure:        return auth::ErrIntegrityFailure;
+            case authentication::Code::UserIdNotFound:          return auth::ErrUserIdNotFound;
+            case authentication::Code::UsernameNotFound:        return auth::ErrUsernameNotFound;
+            case authentication::Code::UsernameAlreadyExists:   return auth::ErrUsernameExists;
+            case authentication::Code::InvalidToken:            return auth::ErrInvalidToken;
+            case authentication::Code::InsufficientPermissions: return auth::ErrNoPermission;
+            case authentication::Code::IncorrectPassword:       return auth::ErrIncorrectPassword;
+            case authentication::Code::UsersBufferFull:         return auth::ErrUsersBufferFull;
+            case authentication::Code::SessionBufferFull:       return auth::ErrSessionBufferFull;
+            case authentication::Code::Overflow:                return auth::ErrOverflow;
+            case authentication::Code::UsernameBufferOverflow:  return auth::ErrUsernameOverflow;
+            case authentication::Code::NameBufferOverflow:      return auth::ErrNameOverflow;
+            case authentication::Code::PasswordBufferOverflow:  return auth::ErrPasswordOverflow;
+            case authentication::Code::EmptyMandatoryField:     return auth::ErrEmptyField;
+            case authentication::Code::IntegrityFailure:        return auth::ErrIntegrityFailure;
         }
         return auth::ErrInternal;
     }

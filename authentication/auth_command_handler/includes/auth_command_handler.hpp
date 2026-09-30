@@ -1,7 +1,7 @@
 #pragma once
 
 #include "controller_slave.hpp"   // ControllerSlave::RequestHandler
-#include "authentication.hpp"     // Authentication (+ Permission, AuthenticationError)
+#include "authentication.hpp"     // Authentication (+ Permission, authentication errors)
 #include "auth_commands.hpp"      // auth:: wire contract
 
 // ============================================================================

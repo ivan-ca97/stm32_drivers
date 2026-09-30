@@ -9,12 +9,12 @@ ResultSession SessionManager::validate(Session::TokenType token)
     auto it = std::find_if(sessions.begin(), sessions.end(), findLambda);
 
     if(it == sessions.end())
-        return Error(AuthenticationError::InvalidToken);
+        return std::unexpected(authentication::invalidToken);
 
     if((*it)->isExpired(clock->seconds()))
     {
         (*it)->expire();
-        return Error(AuthenticationError::InvalidToken);
+        return std::unexpected(authentication::invalidToken);
     }
 
     return *it;
@@ -34,7 +34,7 @@ ResultSession SessionManager::createSession(const User& user)
 
     session = getFreeSession();
     if(!session)
-        return Error(AuthenticationError::SessionBufferFull);
+        return std::unexpected(authentication::sessionBufferFull);
 
     session->start(user, sessionValiditySeconds, clock->seconds(), tokenGenerator->next());
     return session;

@@ -13,14 +13,14 @@ ResultSession Authentication::authenticate(std::string_view username, std::strin
 {
     auto user = userManager->getUser(username);
     if(!user)
-        return Error(AuthenticationError::UsernameNotFound);
+        return std::unexpected(authentication::usernameNotFound);
 
     if(!(*user)->authenticate(password))
-        return Error(AuthenticationError::IncorrectPassword);
+        return std::unexpected(authentication::incorrectPassword);
 
     auto session = sessionManager->createSession(**user);
     if(!session)
-        return Error(AuthenticationError::SessionBufferFull);
+        return std::unexpected(authentication::sessionBufferFull);
 
     return session;
 }
@@ -49,10 +49,10 @@ ResultSession Authentication::validateWithPermission(Session::TokenType token, P
 {
     auto session = sessionManager->validate(token);
     if(!session)
-        return Error(session.error());
+        return std::unexpected(session.error());
 
     if(!(*session)->getUser()->hasPermission(permission))
-        return Error(AuthenticationError::InsufficientPermissions);
+        return std::unexpected(authentication::insufficientPermissions);
 
     return session;
 }
@@ -61,11 +61,11 @@ Result<User::IdType> Authentication::createUser(Session::TokenType token, Permis
 {
     auto session = validateWithPermission(token, Permission::Superuser);
     if(!session)
-        return Error(session.error());
+        return std::unexpected(session.error());
 
     auto newUser = userManager->createUser(newPermission, newUsername, newPassword, newName);
     if(!newUser)
-        return Error(newUser.error());
+        return std::unexpected(newUser.error());
 
     return (*newUser)->getId();
 }
@@ -74,7 +74,7 @@ ResultVoid Authentication::deleteUser(Session::TokenType token, const User& user
 {
     auto session = validateWithPermission(token, Permission::Superuser);
     if(!session)
-        return Error(session.error());
+        return std::unexpected(session.error());
 
     return userManager->deleteUser(user);
 }
@@ -83,7 +83,7 @@ ResultVoid Authentication::deleteUser(Session::TokenType token, User::IdType use
 {
     auto session = validateWithPermission(token, Permission::Superuser);
     if(!session)
-        return Error(session.error());
+        return std::unexpected(session.error());
 
     return userManager->deleteUser(userId);
 }
@@ -92,7 +92,7 @@ ResultVoid Authentication::logOut(Session::TokenType token)
 {
     auto session = sessionManager->validate(token);
     if(!session)
-        return Error(session.error());
+        return std::unexpected(session.error());
 
     sessionManager->expireSession(**session);
     return {};
@@ -102,11 +102,11 @@ ResultVoid Authentication::modifyOwnUsername(Session::TokenType token, std::stri
 {
     auto session = sessionManager->validate(token);
     if(!session)
-        return Error(session.error());
+        return std::unexpected(session.error());
 
     const User* user = (*session)->getUser();
     if(!user)
-        return Error(AuthenticationError::IntegrityFailure);
+        return std::unexpected(authentication::integrityFailure);
 
     return userManager->setUsername(user->getId(), newUsername);
 }
@@ -115,14 +115,14 @@ ResultVoid Authentication::modifyOwnPassword(Session::TokenType token, std::stri
 {
     auto session = sessionManager->validate(token);
     if(!session)
-        return Error(session.error());
+        return std::unexpected(session.error());
 
     const User* user = (*session)->getUser();
     if(!user)
-        return Error(AuthenticationError::IntegrityFailure);
+        return std::unexpected(authentication::integrityFailure);
 
     if(!user->authenticate(oldPassword))
-        return Error(AuthenticationError::IncorrectPassword);
+        return std::unexpected(authentication::incorrectPassword);
 
     return userManager->setPassword(user->getId(), newPassword);
 }
@@ -131,11 +131,11 @@ ResultVoid Authentication::modifyOwnName(Session::TokenType token, std::string_v
 {
     auto session = sessionManager->validate(token);
     if(!session)
-        return Error(session.error());
+        return std::unexpected(session.error());
 
     const User* user = (*session)->getUser();
     if(!user)
-        return Error(AuthenticationError::IntegrityFailure);
+        return std::unexpected(authentication::integrityFailure);
 
     return userManager->setName(user->getId(), newName);
 }
@@ -145,7 +145,7 @@ ResultVoid Authentication::modifyUsername(Session::TokenType token, User::IdType
 {
     auto session = validateWithPermission(token, Permission::Superuser);
     if(!session)
-        return Error(session.error());
+        return std::unexpected(session.error());
 
     return userManager->setUsername(id, newUsername);
 }
@@ -154,7 +154,7 @@ ResultVoid Authentication::modifyPassword(Session::TokenType token, User::IdType
 {
     auto session = validateWithPermission(token, Permission::Superuser);
     if(!session)
-        return Error(session.error());
+        return std::unexpected(session.error());
 
     return userManager->setPassword(id, newPassword);
 }
@@ -163,7 +163,7 @@ ResultVoid Authentication::modifyName(Session::TokenType token, User::IdType id,
 {
     auto session = validateWithPermission(token, Permission::Superuser);
     if(!session)
-        return Error(session.error());
+        return std::unexpected(session.error());
 
     return userManager->setName(id, newName);
 }
@@ -172,7 +172,7 @@ ResultVoid Authentication::modifyPermission(Session::TokenType token, User::IdTy
 {
     auto session = validateWithPermission(token, Permission::Superuser);
     if(!session)
-        return Error(session.error());
+        return std::unexpected(session.error());
 
     return userManager->setPermission(id, newPermission);
 }

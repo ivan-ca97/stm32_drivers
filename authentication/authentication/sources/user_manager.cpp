@@ -7,17 +7,17 @@ ResultUser UserManager::createUser(Permission newPermission, std::string_view ne
 {
     User* newUser = getFreeUser();
     if(!newUser)
-        return Error(AuthenticationError::UsersBufferFull);
+        return std::unexpected(authentication::usersBufferFull);
 
     if(usernameExists(newUsername))
-        return Error(AuthenticationError::UsernameAlreadyExists);
+        return std::unexpected(authentication::usernameAlreadyExists);
 
 
     newUser->setPermission(newPermission);
     newUser->setId(idCounter++);
     auto set = newUser->setBufferedFields(newUsername, newPassword, newName);
     if(!set)
-        return Error(set.error());
+        return std::unexpected(set.error());
 
     newUser->makeValid();
 
@@ -42,7 +42,7 @@ Result<User*> UserManager::getUserByUsername(std::string_view username) const
     auto it = std::find_if(users.begin(), users.end(), findLambda);
 
     if(it == users.end())
-        return Error(AuthenticationError::UsernameNotFound);
+        return std::unexpected(authentication::usernameNotFound);
 
     return *it;
 }
@@ -53,7 +53,7 @@ Result<User*> UserManager::getUserById(User::IdType id) const
     auto it = std::find_if(users.begin(), users.end(), findLambda);
 
     if(it == users.end())
-        return Error(AuthenticationError::UserIdNotFound);
+        return std::unexpected(authentication::userIdNotFound);
 
     return *it;
 }
@@ -61,19 +61,19 @@ Result<User*> UserManager::getUserById(User::IdType id) const
 ResultVoid UserManager::setUsername(User::IdType id, std::string_view newUsername)
 {
     if(newUsername.empty())
-        return Error(AuthenticationError::EmptyMandatoryField);
+        return std::unexpected(authentication::emptyMandatoryField);
 
     auto userResult = getUserById(id);
     if(!userResult)
-        return Error(userResult.error());
+        return std::unexpected(userResult.error());
     User* user = *userResult;
 
     if(user->getUsername() != newUsername && usernameExists(newUsername))
-        return Error(AuthenticationError::UsernameAlreadyExists);
+        return std::unexpected(authentication::usernameAlreadyExists);
 
     auto set = user->setUsername(newUsername);
     if(!set)
-        return Error(set.error());
+        return std::unexpected(set.error());
 
     persist();
     return {};
@@ -82,15 +82,15 @@ ResultVoid UserManager::setUsername(User::IdType id, std::string_view newUsernam
 ResultVoid UserManager::setPassword(User::IdType id, std::string_view newPassword)
 {
     if(newPassword.empty())
-        return Error(AuthenticationError::EmptyMandatoryField);
+        return std::unexpected(authentication::emptyMandatoryField);
 
     auto userResult = getUserById(id);
     if(!userResult)
-        return Error(userResult.error());
+        return std::unexpected(userResult.error());
 
     auto set = (*userResult)->setPassword(newPassword);
     if(!set)
-        return Error(set.error());
+        return std::unexpected(set.error());
 
     persist();
     return {};
@@ -100,11 +100,11 @@ ResultVoid UserManager::setName(User::IdType id, std::string_view newName)
 {
     auto userResult = getUserById(id);
     if(!userResult)
-        return Error(userResult.error());
+        return std::unexpected(userResult.error());
 
     auto set = (*userResult)->setName(newName);
     if(!set)
-        return Error(set.error());
+        return std::unexpected(set.error());
 
     persist();
     return {};
@@ -114,7 +114,7 @@ ResultVoid UserManager::setPermission(User::IdType id, Permission newPermission)
 {
     auto userResult = getUserById(id);
     if(!userResult)
-        return Error(userResult.error());
+        return std::unexpected(userResult.error());
 
     (*userResult)->setPermission(newPermission);
 
@@ -126,7 +126,7 @@ ResultVoid UserManager::deleteUser(std::string_view username)
 {
     auto user = getUserByUsername(username);
     if(!user)
-        return Error(user.error());
+        return std::unexpected(user.error());
 
     return deleteUser(**user);
 }
@@ -136,7 +136,7 @@ ResultVoid UserManager::deleteUser(User::IdType id)
     auto storedUser = getUserById(id);
 
     if(!storedUser)
-        return Error(storedUser.error());
+        return std::unexpected(storedUser.error());
 
     (*storedUser)->reset();
     loadedUsers--;
@@ -150,7 +150,7 @@ ResultVoid UserManager::deleteUser(const User& user)
     auto storedUser = getUserById(user.getId());
 
     if(!storedUser || **storedUser != user)
-        return Error(AuthenticationError::UserIdNotFound);
+        return std::unexpected(authentication::userIdNotFound);
 
     (*storedUser)->reset();
     loadedUsers--;
