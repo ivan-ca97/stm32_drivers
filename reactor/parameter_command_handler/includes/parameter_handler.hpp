@@ -1,7 +1,7 @@
 #pragma once
 
 #include "controller_slave.hpp"   // ControllerSlave::RequestHandler, Response
-#include "register_window.hpp"
+#include "peer/parameter_publisher.h"
 #include "parameter_commands.hpp"
 #include "reactor_parameters.hpp"   // typed source of truth
 #include "authentication.hpp"   // token validation
@@ -18,14 +18,14 @@ static_assert(param::TokenSize == sizeof(Session::TokenType), "wire token size d
 
 // ParameterHandler — the parameter section (SetParam). Validates the token
 // (>= Maintenance) and the value, updates the typed ReactorParameters (the source
-// of truth), persists the whole set, and mirrors the value into its register
-// window for the master's immediate reads.
+// of truth), persists the whole set, and publishes the value into the parameter
+// window for the masters' immediate reads.
 class ParameterHandler : public ControllerSlave::RequestHandler
 {
     public:
-        ParameterHandler(RegisterWindow& window, Authentication& authentication,
+        ParameterHandler(peer::ParameterPublisher& publisher, Authentication& authentication,
                          ReactorParams& params, PersistentStorage& storage)
-            : window(window), authentication(authentication), params(params), storage(storage)
+            : publisher(publisher), authentication(authentication), params(params), storage(storage)
         {
             load();
         }
@@ -33,7 +33,7 @@ class ParameterHandler : public ControllerSlave::RequestHandler
         Progress handle(ControllerSlave::Request request) override;
 
     protected:
-        RegisterWindow& window;
+        peer::ParameterPublisher& publisher;
         Authentication& authentication;
         ReactorParams& params;
         PersistentStorage& storage;
@@ -43,7 +43,6 @@ class ParameterHandler : public ControllerSlave::RequestHandler
             return authentication.validateWithPermission(token, Permission::Maintenance).has_value();
         }
 
-        void mirror(uint8_t paramId, float value);   // write value bytes into the window
         bool persist();   // serialize all params -> storage
-        void load();   // storage -> params + window mirror
+        void load();   // storage -> params + published window
 };

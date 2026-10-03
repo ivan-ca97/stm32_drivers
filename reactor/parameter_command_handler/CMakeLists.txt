@@ -14,4 +14,5 @@ target_link_libraries(parameter_command_handler PUBLIC
     controller
     authentication
     persistent_storage
+    peer
 )

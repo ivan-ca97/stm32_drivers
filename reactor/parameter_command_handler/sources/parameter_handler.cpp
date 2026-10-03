@@ -19,13 +19,6 @@ namespace
     }
 }
 
-void ParameterHandler::mirror(uint8_t paramId, float value)
-{
-    uint8_t bytes[param::ValueSize];
-    std::memcpy(bytes, &value, param::ValueSize);   // little-endian float32
-    window.writeRegisters(paramId * param::ValueSize, bytes, param::ValueSize);
-}
-
 bool ParameterHandler::persist()
 {
     // Snapshot of the whole set (flat order), one float32 per param.
@@ -50,7 +43,7 @@ void ParameterHandler::load()
         float value;
         std::memcpy(&value, buffer + id * param::ValueSize, param::ValueSize);
         if(params.set(id, value))
-            mirror(id, value);   // reflect into the bank the master reads
+            (void)publisher.publish(id, value);   // a failed read-back is not this load's to report
     }
 }
 
@@ -79,18 +72,12 @@ ParameterHandler::Progress ParameterHandler::handle(ControllerSlave::Request req
     if(!params.set(paramId, value))   // typed model validates the value
         return rejected(response, param::ErrorInvalidValue);
 
-    mirror(paramId, value);   // reflect into the master-facing bank
+    const base::Status published = publisher.publish(paramId, value);   // writes + reads back
 
     if(!persist())
         return rejected(response, param::ErrorInternal);
-
-    // Verify the mirror (read-back) matches what we stored.
-    uint8_t expected[param::ValueSize];
-    std::memcpy(expected, &value, param::ValueSize);
-    const uint8_t offset = paramId * param::ValueSize;
-    for(uint8_t i = 0; i < param::ValueSize; i++)
-        if(window.read(offset + i) != expected[i])
-            return rejected(response, param::ErrorVerifyFailed);
+    if(!published)
+        return rejected(response, param::ErrorVerifyFailed);
 
     return Progress::Done;   // Ready with an empty payload -> success
 }
