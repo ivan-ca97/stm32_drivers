@@ -50,14 +50,22 @@ Step ParameterReader::service()
     phase_ = Phase::Idle;
 
     if (transactionFailed_) {
+        lastRead_ = std::unexpected(readFailed);
         return Step::Failed;
     }
     if (!decode()) {
+        lastRead_ = std::unexpected(malformed);
         return Step::Failed;
     }
 
+    lastRead_ = base::ok;
     snapshotValid_ = true;
     return Step::Completed;
+}
+
+base::Status ParameterReader::lastRead() const
+{
+    return lastRead_;
 }
 
 base::Result<ReactorParams> ParameterReader::latest() const

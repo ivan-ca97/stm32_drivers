@@ -32,6 +32,9 @@ class ReactorParameters
         bool set(uint16_t index, float value);
         float get(uint16_t index) const;
 
+        // Every member is calibration, so member-wise equality is equality of the set.
+        bool operator==(const ReactorParameters&) const = default;
+
         // Named accessors for internal computation (group getters clamp range).
         float neutronGroupFraction(uint16_t group) const;
         float neutronGroupDecayConstant(uint16_t group) const;

@@ -30,8 +30,11 @@ public:
     bool busy() const;
 
     // Failed also covers a window holding a value the model rejects; the previous
-    // snapshot is kept then.
+    // snapshot is kept then, and lastRead() tells the two apart.
     Step service();
+
+    // How the last finished read went: ok, readFailed or malformed.
+    base::Status lastRead() const;
 
     // The last set read whole, or noData until one has been.
     base::Result<ReactorParams> latest() const;
@@ -53,6 +56,7 @@ private:
     Phase phase_ = Phase::Idle;
     ReactorParams snapshot_;
     bool snapshotValid_ = false;
+    base::Status lastRead_ = base::ok;
 
     volatile bool transactionBusy_ = false;
     volatile bool transactionFailed_ = false;

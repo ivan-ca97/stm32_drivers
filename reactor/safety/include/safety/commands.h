@@ -26,6 +26,9 @@ enum class WireError : uint8_t {
     UnknownCommand = 0x83,
     PeerParametersDiffer = 0x84,
     PeerUnreachable = 0x85,
+    AlreadyInMaintenance = 0x86,
+    NotInMaintenance = 0x87,
+    PeerParametersCorrupted = 0x88,
 };
 
 } // namespace safety

@@ -14,8 +14,11 @@ add_subdirectory(peer)
 add_subdirectory(measurement_calculator)
 add_subdirectory(parameter_command_handler)
 
+add_subdirectory(safety)
+
 target_link_libraries(${CMAKE_PROJECT_NAME}
     parameter_command_handler
     measurement_calculator
     peer
+    safety
 )

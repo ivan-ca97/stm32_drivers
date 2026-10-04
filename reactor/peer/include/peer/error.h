@@ -7,6 +7,8 @@ namespace peer {
 enum class Code {
     Busy,
     NoData,
+    ReadFailed,
+    Malformed,
     InvalidIndex,
     VerifyFailed,
     MissingPart,
@@ -23,6 +25,10 @@ public:
             return "a read is already running";
         case Code::NoData:
             return "no read has completed yet";
+        case Code::ReadFailed:
+            return "the bus reported an error during the read";
+        case Code::Malformed:
+            return "the window holds a value the model rejects";
         case Code::InvalidIndex:
             return "no parameter at that index";
         case Code::VerifyFailed:
@@ -38,6 +44,8 @@ inline constexpr Category errorCategory{};
 
 inline constexpr base::Error busy{errorCategory, static_cast<int>(Code::Busy)};
 inline constexpr base::Error noData{errorCategory, static_cast<int>(Code::NoData)};
+inline constexpr base::Error readFailed{errorCategory, static_cast<int>(Code::ReadFailed)};
+inline constexpr base::Error malformed{errorCategory, static_cast<int>(Code::Malformed)};
 inline constexpr base::Error invalidIndex{errorCategory, static_cast<int>(Code::InvalidIndex)};
 inline constexpr base::Error verifyFailed{errorCategory, static_cast<int>(Code::VerifyFailed)};
 inline constexpr base::Error missingPart{errorCategory, static_cast<int>(Code::MissingPart)};
