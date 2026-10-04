@@ -55,9 +55,15 @@ bool I2cBus::sendNextTransaction()
         return false;
     }
 
-    LL_I2C_GenerateStartCondition(instance);
+    // State before the START: the SB event fires within microseconds, and any ISR
+    // that delays this code lets it run first. Finding the bus Idle, it would leave SB
+    // set, and the event interrupt would fire again forever.
     currentTransaction->setState(I2cTransaction::STARTING);
     state = State::StartAttempt;
+
+    // A 2-byte read leaves POS set, and it must be clear for any other length.
+    LL_I2C_DisableBitPOS(instance);
+    LL_I2C_GenerateStartCondition(instance);
     return true;
 }
 
