@@ -14,6 +14,7 @@
 //
 //   0x7E (W): request [cmd][len][payload]
 //   0x7F (R): response [status][len][data][filler]   status: 0 Idle,1 Proc,2 Ready,3 Err
+//             len is 0 unless status is Ready or Err.
 //   any other address (R): immediate registers from the shared RegisterBank.
 //
 // One command at a time: a request is taken only with the mailbox Idle. A reply
@@ -134,7 +135,9 @@ class ControllerSlave : public I2cSlave
         uint32_t timeoutMs;
 
         // --- Mailbox (shared ISR <-> main loop) ---
-        volatile Status cmdStatus = Status::Idle;   // byte 0 of the response
+        // Where the command in the mailbox stands, for as long as it lasts. The ISR and
+        // the main loop both move it.
+        volatile Status mailboxStatus = Status::Idle;
         volatile uint8_t respLen = 0;
         uint8_t respData[MAX_PAYLOAD] = {};
         uint8_t inbox[2 + MAX_PAYLOAD] = {};   // [cmd][len][payload]
@@ -151,6 +154,10 @@ class ControllerSlave : public I2cSlave
         bool pointerSet = false;
         bool writingRequest = false;
         bool readingResponse = false;
+        // What byte 0 of the poll in progress showed the master, for as long as that read
+        // lasts. mailboxStatus may move on meanwhile, the ack and the rest of the bytes go
+        // by this one.
+        Status pollStatus = Status::Idle;
         uint16_t byteIndex = 0;
 
         // Compiler barrier: on a single-core Cortex-M it is enough to order the

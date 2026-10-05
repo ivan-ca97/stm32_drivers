@@ -18,7 +18,7 @@ void ControllerSlave::onWriteByte(const uint8_t data)
         pointerSet = true;
         byteIndex = 0;
         writingRequest = (!readOnly && regPointer == REG_REQUEST
-                          && !requestPending && cmdStatus == Status::Idle);
+                          && !requestPending && mailboxStatus == Status::Idle);
         if(writingRequest)
             inboxLen = 0;
         return;
@@ -35,11 +35,18 @@ uint8_t ControllerSlave::onReadByte()
 
     if(regPointer == REG_RESPONSE)   // [status][len][data][filler]
     {
-        readingResponse = true;
-        if(i == 0) return static_cast<uint8_t>(cmdStatus);
-        if(i == 1) return respLen;
-        if(i >= 2 && (i - 2) < respLen) return respData[i - 2];
-        return 0x00;   // filler
+        if(i == 0)
+        {
+            readingResponse = true;
+            pollStatus = mailboxStatus;
+            return static_cast<uint8_t>(pollStatus);
+        }
+        // Only a finished command has a response, anything else reads as empty, so the
+        // bytes after the status never carry a previous or half-built one.
+        const bool hasResponse = (pollStatus == Status::Ready || pollStatus == Status::Error);
+        if(i == 1) return hasResponse ? respLen : 0;
+        if(hasResponse && i >= 2 && (i - 2) < respLen) return respData[i - 2];
+        return 0x00;   // filler: the master decides how many bytes it reads
     }
 
     return bank.read(regPointer + i);   // immediate registers
@@ -52,17 +59,17 @@ void ControllerSlave::onEndTransaction()
         writingRequest = false;
         // Request complete -> ask for processing. Re-checked here because the
         // mailbox may have been taken while the frame was still arriving.
-        if(inboxLen >= 2 && cmdStatus == Status::Idle)
+        if(inboxLen >= 2 && mailboxStatus == Status::Idle)
         {
             requestPending = true;
-            cmdStatus = Status::Processing;
+            mailboxStatus = Status::Processing;
         }
     }
-    else if(readingResponse && (cmdStatus == Status::Ready || cmdStatus == Status::Error))
+    else if(readingResponse && (pollStatus == Status::Ready || pollStatus == Status::Error))
     {
         // The read is the ack: any read of a Ready/Error response returns to Idle,
         // so the master must read the whole response in a single transaction.
-        cmdStatus = Status::Idle;
+        mailboxStatus = Status::Idle;
     }
 
     pointerSet = false;
@@ -73,7 +80,7 @@ void ControllerSlave::onEndTransaction()
 
 void ControllerSlave::onError()
 {
-    if(writingRequest && cmdStatus != Status::Processing)
+    if(writingRequest && mailboxStatus != Status::Processing)
         inboxLen = 0;   // drop the partial request
     pointerSet = false;
     writingRequest = false;
@@ -120,7 +127,7 @@ void ControllerSlave::process()
 
     publishBarrier();   // respData/respLen visible BEFORE publishing the status
     respLen = response.length();
-    cmdStatus = response.isError() ? Status::Error : Status::Ready;
+    mailboxStatus = response.isError() ? Status::Error : Status::Ready;
 }
 
 // -------------------------------- Response ----------------------------------
