@@ -59,12 +59,20 @@ bool I2cBus::sendSlaveAddress(bool readBit)
 
 void I2cBus::prepareMasterRx(uint8_t remainingBytes)
 {
+    // A 1-byte read hits remainingBytes == 1 still on the address phase, so that branch
+    // clears ADDR before the STOP.
+    const bool onAddress = LL_I2C_IsActiveFlag_ADDR(instance);
+
     if(remainingBytes == 1)
     {
         LL_I2C_AcknowledgeNextData(instance, LL_I2C_NACK);
+        if(onAddress)
+            LL_I2C_ClearFlag_ADDR(instance);
         LL_I2C_GenerateStopCondition(instance);
+        return;
     }
-    else if(remainingBytes == 2)
+
+    if(remainingBytes == 2)
     {
         LL_I2C_EnableBitPOS(instance);
         LL_I2C_AcknowledgeNextData(instance, LL_I2C_NACK);
@@ -73,6 +81,9 @@ void I2cBus::prepareMasterRx(uint8_t remainingBytes)
     {
         LL_I2C_AcknowledgeNextData(instance, LL_I2C_ACK);
     }
+
+    if(onAddress)
+        LL_I2C_ClearFlag_ADDR(instance);
 }
 
 void I2cBus::finishCurrentTransaction(bool postCallback)
@@ -116,9 +127,12 @@ void I2cBus::masterStateSendSlaveAddress()
     }
     else
     {
-        prepareMasterRx(currentTransaction->getDataLengthBytes());
         currentTransaction->setState(I2cTransaction::EXCHANGING_DATA);
         state = State::ReceiveData;
+        prepareMasterRx(currentTransaction->getDataLengthBytes());
+        LL_I2C_EnableIT_BUF(instance);
+        currentIndex = 0;
+        return;
     }
 
     LL_I2C_ClearFlag_ADDR(instance);
@@ -197,12 +211,10 @@ void I2cBus::masterStateRepeatedStartAckAddr()
     if(!LL_I2C_IsActiveFlag_ADDR(instance))
         return;
 
+    state = State::ReceiveData;
     prepareMasterRx(currentTransaction->getDataLengthBytes());
-    LL_I2C_ClearFlag_ADDR(instance);
     LL_I2C_EnableIT_BUF(instance);
     currentIndex = 0;
-
-    state = State::ReceiveData;
 }
 
 void I2cBus::masterStateReceiveData()
