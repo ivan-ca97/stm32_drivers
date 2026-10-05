@@ -84,6 +84,11 @@ I2cTransaction::State I2cTransaction::getState()
     return state;
 }
 
+bool I2cTransaction::isDone()
+{
+    return state == FINISHED || state == ERROR || state == CANCELLED;
+}
+
 bool I2cTransaction::isTx()
 {
     return direction == TX;

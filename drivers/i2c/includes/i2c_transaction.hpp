@@ -50,6 +50,9 @@ class I2cTransaction
 
         State getState();
 
+        // Finished, failed or cancelled: the bus has let it go, and its owner may reuse it.
+        bool isDone();
+
         void setState(State state);
 
         bool isTx();
