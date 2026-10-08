@@ -16,9 +16,10 @@ add_subdirectory(parameter_command_handler)
 
 add_subdirectory(safety)
 
+# Top of the application: composes everything above.
+add_subdirectory(reactor)
+
 target_link_libraries(${CMAKE_PROJECT_NAME}
-    parameter_command_handler
-    measurement_calculator
-    peer
+    reactor_core
     safety
 )
