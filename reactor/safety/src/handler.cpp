@@ -1,5 +1,6 @@
 #include <cstdint>
 #include <expected>
+#include <optional>
 #include <span>
 #include <utility>
 
@@ -88,15 +89,9 @@ Handler::Progress Handler::handle(ControllerSlave::Request request)
         return leaveMaintenance(response);
     }
 
-    std::span<const uint8_t> payload = request.payload();
-    if (payload.size() != tokenSize) {
-        return reject(response, WireError::Malformed);
-    }
-    base::Status authorized = authorize(readLittleEndian(payload));
-    if (!authorized.has_value()) {
-        bool lacksPermission = authorized.error() == authentication::insufficientPermissions;
-        WireError error = lacksPermission ? WireError::NoPermission : WireError::InvalidToken;
-        return reject(response, error);
+    std::optional<WireError> refused = refusal(request.payload());
+    if (refused.has_value()) {
+        return reject(response, *refused);
     }
 
     switch (static_cast<Command>(request.cmd())) {
@@ -123,13 +118,20 @@ void Handler::abandon()
     awaitingPeerRead_ = false;
 }
 
-base::Status Handler::authorize(uint64_t token) const
+std::optional<WireError> Handler::refusal(std::span<const uint8_t> payload) const
 {
-    ResultSession session = authentication_.validateWithPermission(token, Permission::Maintenance);
-    if (!session.has_value()) {
-        return std::unexpected(session.error());
+    if (payload.size() != tokenSize) {
+        return WireError::Malformed;
     }
-    return base::ok;
+
+    uint64_t token = readLittleEndian(payload);
+    ResultSession session = authentication_.validateWithPermission(token, Permission::Maintenance);
+    if (session.has_value()) {
+        return std::nullopt;
+    }
+
+    bool lacksPermission = session.error() == authentication::insufficientPermissions;
+    return lacksPermission ? WireError::NoPermission : WireError::InvalidToken;
 }
 
 bool Handler::peerAgreesOnParameters() const
@@ -144,35 +146,18 @@ bool Handler::peerAgreesOnParameters() const
 Handler::Progress Handler::leaveMaintenance(ControllerSlave::Response& response)
 {
     if (!awaitingPeerRead_) {
-        // Drains a read left behind by an abandoned command, which would otherwise
-        // keep start() refusing.
-        (void)peerParameters_.service();
-
-        base::Status started = peerParameters_.start();
-        if (started.has_value()) {
-            awaitingPeerRead_ = true;
-            parameterReads_ = 1;
-        }
+        startPeerRead();
         return Progress::Pending;
     }
 
     peer::Step step = peerParameters_.service();
-    if (step == peer::Step::Busy) {
-        return Progress::Pending;
-    }
-
-    bool corrupted = step == peer::Step::Failed
-        && peerParameters_.lastRead().error() == peer::malformed;
-    if (corrupted && parameterReads_ < maxParameterReads) {
-        // The read has just finished, so the reader is free and start() cannot refuse.
-        (void)peerParameters_.start();
-        parameterReads_++;
+    if (step == peer::Step::Busy || rereadIfCorrupted(step)) {
         return Progress::Pending;
     }
 
     awaitingPeerRead_ = false;
 
-    if (corrupted) {
+    if (isReadCorrupted(step)) {
         return reject(response, WireError::PeerParametersCorrupted);
     }
     if (step != peer::Step::Completed) {
@@ -185,6 +170,36 @@ Handler::Progress Handler::leaveMaintenance(ControllerSlave::Response& response)
     peerMonitor_.resetDiscrepancyLatch();
     mode_.leaveMaintenance();
     return Progress::Done;
+}
+
+void Handler::startPeerRead()
+{
+    // Drains a read left behind by an abandoned command, which would otherwise keep
+    // start() refusing.
+    (void)peerParameters_.service();
+
+    base::Status started = peerParameters_.start();
+    if (started.has_value()) {
+        awaitingPeerRead_ = true;
+        parameterReads_ = 1;
+    }
+}
+
+bool Handler::rereadIfCorrupted(peer::Step step)
+{
+    if (!isReadCorrupted(step) || parameterReads_ >= maxParameterReads) {
+        return false;
+    }
+
+    // The read has just finished, so the reader is free and start() cannot refuse.
+    (void)peerParameters_.start();
+    parameterReads_++;
+    return true;
+}
+
+bool Handler::isReadCorrupted(peer::Step step) const
+{
+    return step == peer::Step::Failed && peerParameters_.lastRead().error() == peer::malformed;
 }
 
 } // namespace safety

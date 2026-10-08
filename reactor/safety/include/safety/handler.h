@@ -1,6 +1,8 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
+#include <span>
 
 #include "authentication.hpp"
 #include "base/passkey.h"
@@ -10,6 +12,7 @@
 #include "peer/link.h"
 #include "peer/monitor.h"
 #include "reactor_parameters.hpp"
+#include "safety/commands.h"
 #include "safety/error.h"
 
 namespace safety {
@@ -61,9 +64,14 @@ public:
     void abandon() override;
 
 private:
-    base::Status authorize(uint64_t token) const;
-    bool peerAgreesOnParameters() const;
+    // Why a request is turned away before its command is looked at, if it is.
+    std::optional<WireError> refusal(std::span<const uint8_t> payload) const;
+
     Progress leaveMaintenance(ControllerSlave::Response& response);
+    void startPeerRead();
+    bool rereadIfCorrupted(peer::Step step);
+    bool isReadCorrupted(peer::Step step) const;
+    bool peerAgreesOnParameters() const;
 
     Authentication& authentication_;
     OperatingMode& mode_;
