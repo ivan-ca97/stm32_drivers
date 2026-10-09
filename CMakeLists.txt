@@ -21,6 +21,7 @@ add_subdirectory(drivers/ads1115)
 add_subdirectory(persistence)
 add_subdirectory(controller)
 add_subdirectory(authentication)
+add_subdirectory(platform/stm32f4)   # adapters of this MCU, behind generic ports
 add_subdirectory(reactor)   # app layer (reactor-specific sections): depends on controller + authentication
 
 target_link_libraries(${CMAKE_PROJECT_NAME}
