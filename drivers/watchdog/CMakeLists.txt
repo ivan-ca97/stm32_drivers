@@ -10,5 +10,6 @@ target_include_directories(watchdog_driver PUBLIC
 )
 
 target_link_libraries(watchdog_driver
+    base
     ${STM32_BASE_LIBRARIES}
 )

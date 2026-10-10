@@ -1,5 +1,7 @@
 #include "watchdog.hpp"
 
+#include <expected>
+
 #include "stm32f4xx.h"
 
 namespace
@@ -18,18 +20,41 @@ namespace
     // than the LSI's own spread.
     constexpr uint8_t  PrescalerExponent = 6;
     constexpr uint32_t Divider = 4u << PrescalerExponent;
+
+    bool timeoutInRange(uint32_t timeoutMs)
+    {
+        return timeoutMs >= Watchdog::MinTimeoutMs && timeoutMs <= Watchdog::MaxTimeoutMs;
+    }
 }
 
-bool Watchdog::start(uint32_t timeoutMs)
+base::Status Watchdog::start(uint32_t timeoutMs)
 {
-    if(timeoutMs < MinTimeoutMs || timeoutMs > MaxTimeoutMs)
-        return false;
+    if(!timeoutInRange(timeoutMs))
+        return std::unexpected(watchdog::timeoutOutOfRange);
 
+    // Starting first is what turns the LSI on, and the wait in configure() needs it
+    // running. Unlocking before starting would leave that wait spinning forever.
+    IWDG->KR = KeyEnable;
+    running = true;
+    configure(timeoutMs);
+    return base::ok;
+}
+
+base::Status Watchdog::setTimeout(uint32_t timeoutMs)
+{
+    if(!running)
+        return std::unexpected(watchdog::notRunning);
+    if(!timeoutInRange(timeoutMs))
+        return std::unexpected(watchdog::timeoutOutOfRange);
+
+    configure(timeoutMs);
+    return base::ok;
+}
+
+void Watchdog::configure(uint32_t timeoutMs)
+{
     const uint32_t reload = (timeoutMs * LsiHz) / (Divider * 1000u);
 
-    // Starting first is what turns the LSI on, and the wait below needs it running.
-    // Unlocking before starting would leave that wait spinning forever.
-    IWDG->KR  = KeyEnable;
     IWDG->KR  = KeyUnlockWrite;
 
     IWDG->PR  = PrescalerExponent;
@@ -40,7 +65,6 @@ bool Watchdog::start(uint32_t timeoutMs)
     while(IWDG->SR != 0) {}
 
     IWDG->KR = KeyReload;
-    return true;
 }
 
 void Watchdog::kick()
