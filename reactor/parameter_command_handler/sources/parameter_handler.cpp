@@ -19,32 +19,15 @@ namespace
     }
 }
 
-bool ParameterHandler::persist()
-{
-    // Snapshot of the whole set (flat order), one float32 per param.
-    uint8_t buffer[param::ParamCount * param::ValueSize];
-    for(uint8_t id = 0; id < param::ParamCount; id++)
-    {
-        float value = params.get(id);
-        std::memcpy(buffer + id * param::ValueSize, &value, param::ValueSize);
-    }
-    return storage.write(buffer, sizeof(buffer));
-}
-
 void ParameterHandler::load()
 {
-    uint8_t buffer[param::ParamCount * param::ValueSize];
-    uint32_t n = storage.read(buffer, sizeof(buffer));
-    if(n < sizeof(buffer))
-        return;   // nothing persisted yet (or short) -> keep defaults
+    // Without a stored set, or one that cannot be read, the model keeps its defaults.
+    const base::Result<ReactorParams> stored = storage.load();
+    if(stored)
+        params = *stored;
 
     for(uint8_t id = 0; id < param::ParamCount; id++)
-    {
-        float value;
-        std::memcpy(&value, buffer + id * param::ValueSize, param::ValueSize);
-        if(params.set(id, value))
-            (void)publisher.publish(id, value);   // a failed read-back is not this load's to report
-    }
+        (void)publisher.publish(id, params.get(id));   // a failed read-back is not this load's to report
 }
 
 ParameterHandler::Progress ParameterHandler::handle(ControllerSlave::Request request)
@@ -73,9 +56,6 @@ ParameterHandler::Progress ParameterHandler::handle(ControllerSlave::Request req
         return rejected(response, param::ErrorInvalidValue);
 
     const base::Status published = publisher.publish(paramId, value);   // writes + reads back
-
-    if(!persist())
-        return rejected(response, param::ErrorInternal);
     if(!published)
         return rejected(response, param::ErrorVerifyFailed);
 

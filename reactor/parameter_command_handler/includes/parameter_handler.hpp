@@ -5,7 +5,7 @@
 #include "parameter_commands.hpp"
 #include "reactor_parameters.hpp"   // typed source of truth
 #include "authentication.hpp"   // token validation
-#include "persistent_storage.hpp"   // persistence
+#include "calibration_storage.hpp"   // persistence
 
 // The wire's ParamId list is built from the model's NeutronGroups, but laid out by
 // hand; this catches the two shapes drifting apart if a param is added to one and
@@ -18,13 +18,14 @@ static_assert(param::TokenSize == sizeof(Session::TokenType), "wire token size d
 
 // ParameterHandler — the parameter section (SetParam). Validates the token
 // (>= Maintenance) and the value, updates the typed ReactorParameters (the source
-// of truth), persists the whole set, and publishes the value into the parameter
-// window for the masters' immediate reads.
+// of truth), and publishes it into the parameter window for the masters' immediate
+// reads. This section does not persist, it only loads the stored calibration on
+// start-up.
 class ParameterHandler : public ControllerSlave::RequestHandler
 {
     public:
         ParameterHandler(peer::ParameterPublisher& publisher, Authentication& authentication,
-                         ReactorParams& params, PersistentStorage& storage)
+                         ReactorParams& params, CalibrationStorage& storage)
             : publisher(publisher), authentication(authentication), params(params), storage(storage)
         {
             load();
@@ -36,13 +37,12 @@ class ParameterHandler : public ControllerSlave::RequestHandler
         peer::ParameterPublisher& publisher;
         Authentication& authentication;
         ReactorParams& params;
-        PersistentStorage& storage;
+        CalibrationStorage& storage;
 
         bool validateToken(uint64_t token)
         {
             return authentication.validateWithPermission(token, Permission::Maintenance).has_value();
         }
 
-        bool persist();   // serialize all params -> storage
         void load();   // storage -> params + published window
 };

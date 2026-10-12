@@ -8,3 +8,7 @@ add_library(reactor_parameters INTERFACE)
 target_include_directories(reactor_parameters INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/includes
 )
+
+target_link_libraries(reactor_parameters INTERFACE
+    base
+)
