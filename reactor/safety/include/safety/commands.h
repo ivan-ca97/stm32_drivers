@@ -15,6 +15,7 @@ enum class Command : uint8_t {
     EnterMaintenance = 0x40,
     LeaveMaintenance = 0x41,
     ResetDiscrepancyLatch = 0x42,
+    CompactStorage = 0x43,
 };
 
 inline constexpr uint8_t tokenSize = 8;
@@ -29,6 +30,9 @@ enum class WireError : uint8_t {
     AlreadyInMaintenance = 0x86,
     NotInMaintenance = 0x87,
     PeerParametersCorrupted = 0x88,
+    CalibrationNotSaved = 0x89,
+    CompactionRequired = 0x8A,
+    CompactionFailed = 0x8B,
 };
 
 } // namespace safety

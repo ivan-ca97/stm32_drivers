@@ -45,9 +45,13 @@ Handler::Builder& Handler::Builder::mode(OperatingMode& mode)
     return *this;
 }
 
-Handler::Builder& Handler::Builder::calibration(const ReactorParams& parameters)
+Handler::Builder& Handler::Builder::calibration(
+    const ReactorParams& parameters,
+    CalibrationStorage& storage
+)
 {
     parameters_ = &parameters;
+    calibrationStorage_ = &storage;
     return *this;
 }
 
@@ -58,13 +62,22 @@ Handler::Builder& Handler::Builder::peer(peer::Link& link, peer::Monitor& monito
     return *this;
 }
 
+Handler::Builder& Handler::Builder::storage(StorageUpkeep& upkeep, uint32_t minimumFreeBytes)
+{
+    storage_ = &upkeep;
+    minimumFreeBytes_ = minimumFreeBytes;
+    return *this;
+}
+
 base::Result<Handler> Handler::Builder::build() const
 {
     bool complete = authentication_ != nullptr
         && mode_ != nullptr
         && parameters_ != nullptr
+        && calibrationStorage_ != nullptr
         && link_ != nullptr
-        && monitor_ != nullptr;
+        && monitor_ != nullptr
+        && storage_ != nullptr;
     if (!complete) {
         return std::unexpected(missingPart);
     }
@@ -76,8 +89,11 @@ Handler::Handler(const Builder& parts, Permit)
     : authentication_(*parts.authentication_),
       mode_(*parts.mode_),
       localParameters_(*parts.parameters_),
+      calibrationStorage_(*parts.calibrationStorage_),
       peerParameters_(parts.link_->parameters()),
-      peerMonitor_(*parts.monitor_)
+      peerMonitor_(*parts.monitor_),
+      storage_(*parts.storage_),
+      minimumFreeBytes_(parts.minimumFreeBytes_)
 {
 }
 
@@ -105,10 +121,15 @@ Handler::Progress Handler::handle(ControllerSlave::Request request)
         if (!mode_.inMaintenance()) {
             return reject(response, WireError::NotInMaintenance);
         }
+        if (storage_.freeBytes() < minimumFreeBytes_) {
+            return reject(response, WireError::CompactionRequired);
+        }
         return leaveMaintenance(response);
     case Command::ResetDiscrepancyLatch:
         peerMonitor_.resetDiscrepancyLatch();
         return Progress::Done;
+    case Command::CompactStorage:
+        return compactStorage(response);
     }
     return reject(response, WireError::UnknownCommand);
 }
@@ -166,6 +187,11 @@ Handler::Progress Handler::leaveMaintenance(ControllerSlave::Response& response)
     if (!peerAgreesOnParameters()) {
         return reject(response, WireError::PeerParametersDiffer);
     }
+    // Still in maintenance, so a save that has to compact may do so.
+    base::Status saved = calibrationStorage_.save(localParameters_);
+    if (!saved.has_value()) {
+        return reject(response, WireError::CalibrationNotSaved);
+    }
 
     peerMonitor_.resetDiscrepancyLatch();
     mode_.leaveMaintenance();
@@ -200,6 +226,19 @@ bool Handler::rereadIfCorrupted(peer::Step step)
 bool Handler::isReadCorrupted(peer::Step step) const
 {
     return step == peer::Step::Failed && peerParameters_.lastRead().error() == peer::malformed;
+}
+
+Handler::Progress Handler::compactStorage(ControllerSlave::Response& response)
+{
+    if (!mode_.inMaintenance()) {
+        return reject(response, WireError::NotInMaintenance);
+    }
+
+    base::Status compacted = storage_.compact();
+    if (!compacted.has_value()) {
+        return reject(response, WireError::CompactionFailed);
+    }
+    return Progress::Done;
 }
 
 } // namespace safety

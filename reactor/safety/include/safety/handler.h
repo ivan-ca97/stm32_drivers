@@ -7,6 +7,7 @@
 #include "authentication.hpp"
 #include "base/passkey.h"
 #include "base/result.h"
+#include "calibration_storage.hpp"
 #include "controller_slave.hpp"
 #include "operating_mode.hpp"
 #include "peer/link.h"
@@ -14,6 +15,7 @@
 #include "reactor_parameters.hpp"
 #include "safety/commands.h"
 #include "safety/error.h"
+#include "safety/storage_upkeep.h"
 
 namespace safety {
 
@@ -22,10 +24,15 @@ namespace safety {
 //
 // Entering only changes the mode. Leaving reads the peer's parameter window first and
 // succeeds only if both boards hold the same calibration, answering Pending while the
-// read is under way. That is the only moment the two calibrations are compared.
+// read is under way. That is the only moment the two calibrations are compared, and the
+// only one the calibration is saved: what is stored is always the last one approved.
 //
 // A command for the mode already in place is refused, so the master learns it was out
 // of step.
+//
+// Storage is compacted only by CompactStorage, in maintenance, so the stall it causes is
+// always one the master asked for. Leaving maintenance requires minimumFreeBytes of room
+// first, so writes made in normal operation, where nothing compacts, find room.
 //
 // A peer window holding a value the model rejects is read again, up to
 // maxParameterReads times, before it is reported as corrupted, one bad read is taken
@@ -38,8 +45,9 @@ public:
     public:
         Builder& authentication(Authentication& authentication);
         Builder& mode(OperatingMode& mode);
-        Builder& calibration(const ReactorParams& parameters);
+        Builder& calibration(const ReactorParams& parameters, CalibrationStorage& storage);
         Builder& peer(peer::Link& link, peer::Monitor& monitor);
+        Builder& storage(StorageUpkeep& upkeep, uint32_t minimumFreeBytes);
 
         base::Result<Handler> build() const;
 
@@ -47,8 +55,11 @@ public:
         Authentication* authentication_ = nullptr;
         OperatingMode* mode_ = nullptr;
         const ReactorParams* parameters_ = nullptr;
+        CalibrationStorage* calibrationStorage_ = nullptr;
         peer::Link* link_ = nullptr;
         peer::Monitor* monitor_ = nullptr;
+        StorageUpkeep* storage_ = nullptr;
+        uint32_t minimumFreeBytes_ = 0;
 
         friend class Handler;
     };
@@ -68,6 +79,7 @@ private:
     std::optional<WireError> refusal(std::span<const uint8_t> payload) const;
 
     Progress leaveMaintenance(ControllerSlave::Response& response);
+    Progress compactStorage(ControllerSlave::Response& response);
     void startPeerRead();
     bool rereadIfCorrupted(peer::Step step);
     bool isReadCorrupted(peer::Step step) const;
@@ -76,8 +88,11 @@ private:
     Authentication& authentication_;
     OperatingMode& mode_;
     const ReactorParams& localParameters_;
+    CalibrationStorage& calibrationStorage_;
     peer::ParameterReader& peerParameters_;
     peer::Monitor& peerMonitor_;
+    StorageUpkeep& storage_;
+    uint32_t minimumFreeBytes_;
     bool awaitingPeerRead_ = false;
     uint8_t parameterReads_ = 0;
 };
