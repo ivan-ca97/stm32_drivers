@@ -19,6 +19,7 @@ add_subdirectory(drivers/watchdog)
 add_subdirectory(drivers/adc)
 add_subdirectory(drivers/ads1115)
 add_subdirectory(persistence)
+add_subdirectory(flash_log)
 add_subdirectory(controller)
 add_subdirectory(authentication)
 add_subdirectory(platform/stm32f4)   # adapters of this MCU, behind generic ports
