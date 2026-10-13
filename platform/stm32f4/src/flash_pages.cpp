@@ -1,14 +1,49 @@
 #include <cstdint>
 #include <expected>
 #include <span>
+#include <utility>
 
 #include "stm32f4/error.h"
 #include "stm32f4/flash_pages.h"
 
 namespace stm32f4 {
 
-FlashPages::FlashPages(Flash& flash, Sector first, Sector second, uint32_t size)
-    : flash_(flash), sectors_{first, second}, size_(size)
+FlashPages::Builder& FlashPages::Builder::flash(Flash& flash)
+{
+    flash_ = &flash;
+    return *this;
+}
+
+FlashPages::Builder& FlashPages::Builder::sectors(Sector first, Sector second, uint32_t size)
+{
+    sectors_[0] = first;
+    sectors_[1] = second;
+    size_ = size;
+    return *this;
+}
+
+FlashPages::Builder& FlashPages::Builder::stallListener(StallListener& listener)
+{
+    stallListener_ = &listener;
+    return *this;
+}
+
+base::Result<FlashPages> FlashPages::Builder::build() const
+{
+    if (flash_ == nullptr || size_ == 0) {
+        return std::unexpected(missingPart);
+    }
+    if (sectors_[0].number == sectors_[1].number) {
+        return std::unexpected(sameSector);
+    }
+    return base::Result<FlashPages>(std::in_place, *this, Permit{});
+}
+
+FlashPages::FlashPages(const Builder& parts, Permit)
+    : flash_(*parts.flash_),
+      sectors_{parts.sectors_[0], parts.sectors_[1]},
+      size_(parts.size_),
+      stallListener_(parts.stallListener_)
 {
 }
 
@@ -19,7 +54,15 @@ uint32_t FlashPages::pageSize() const
 
 base::Status FlashPages::erase(uint8_t page)
 {
-    if (!flash_.eraseSector(sectorOf(page).number)) {
+    if (stallListener_ != nullptr) {
+        stallListener_->stallStarting();
+    }
+    bool erased = flash_.eraseSector(sectorOf(page).number);
+    if (stallListener_ != nullptr) {
+        stallListener_->stallEnded();
+    }
+
+    if (!erased) {
         return std::unexpected(eraseFailed);
     }
     return base::ok;
