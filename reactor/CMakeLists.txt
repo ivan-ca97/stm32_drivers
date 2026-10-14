@@ -22,7 +22,11 @@ add_subdirectory(storage)
 # Top of the application: composes everything above.
 add_subdirectory(reactor)
 
+# The composition root: builds the system on this board and runs it.
+add_subdirectory(application)
+
 target_link_libraries(${CMAKE_PROJECT_NAME}
+    application
     reactor_core
     safety
 )
