@@ -16,6 +16,9 @@ add_subdirectory(parameter_command_handler)
 
 add_subdirectory(safety)
 
+# Persistence of the reactor's data, over the generic flash log.
+add_subdirectory(storage)
+
 # Top of the application: composes everything above.
 add_subdirectory(reactor)
 
