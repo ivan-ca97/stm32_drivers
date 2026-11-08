@@ -9,19 +9,18 @@
 #include "ads1115_error.hpp"
 #include "base/result.h"
 
-// ============================================================================
 // Ads1115 — 16-bit I2C ADC (4 single-ended channels), driven single-shot over an
 // I2cDevice.
 //
 // Non-blocking acquisition is caller-driven: startSample() begins one conversion on
-// one channel, and service() advances it.
+// one channel, and service() advances it. With a scan set, service() also starts the
+// next scanned channel whenever it finds the device idle.
 //
 // Each completed conversion lands in a per-channel cache that readLatestCounts()
 // serves without touching the bus. The cache is written from the I2C completion
 // callback (ISR); a single aligned int16_t store/load is atomic here, so no lock is
 // needed. Until a channel has been converted at the gain currently in effect it
 // reports NoData.
-// ============================================================================
 class Ads1115 : public Adc
 {
     public:
@@ -78,6 +77,9 @@ class Ads1115 : public Adc
         }
 
         void setDataRate(DataRate r)    { dataRate = r; }
+
+        void addToScan(Channel channel);
+        void removeFromScan(Channel channel);
 
         // --- ADC ---
         void reset() override;
@@ -159,8 +161,10 @@ class Ads1115 : public Adc
 
         volatile int16_t cache[MaxChannels] = {};   // per channel; see class comment
         volatile uint8_t validChannels = 0;   // bit per channel: cache[i] holds a real reading
+        uint8_t scanChannels = 0;   // bit per channel: sampled in turn by service()
 
         Config singleShotConfig(Channel channel) const;
+        Channel nextScanChannel() const;
         bool writeConfig(const Config& config);             // blocking
         bool readRegister16(uint8_t reg, uint16_t& value);  // blocking
 

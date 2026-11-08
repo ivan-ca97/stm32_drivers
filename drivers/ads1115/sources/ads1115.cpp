@@ -58,6 +58,28 @@ void Ads1115::reset()
     phase = Phase::Aborting;
 }
 
+void Ads1115::addToScan(Channel channel)
+{
+    scanChannels |= uint8_t(1u << uint8_t(channel));
+}
+
+void Ads1115::removeFromScan(Channel channel)
+{
+    scanChannels &= uint8_t(~(1u << uint8_t(channel)));
+}
+
+// The first scanned channel after the one sampled last, wrapping around.
+Ads1115::Channel Ads1115::nextScanChannel() const
+{
+    for(uint8_t step = 1; step <= MaxChannels; step++)
+    {
+        const uint8_t index = (uint8_t(currentChannel) + step) % MaxChannels;
+        if(scanChannels & (1u << index))
+            return Channel(index);
+    }
+    return currentChannel;
+}
+
 Ads1115::StartResult Ads1115::startSample(Channel channel)
 {
     if(busy())
@@ -76,7 +98,10 @@ Ads1115::Step Ads1115::service()
     switch(phase)
     {
         case Phase::Idle:
-            return Step::Idle;   // nothing in flight: the caller decides what to sample
+            if(scanChannels == 0)
+                return Step::Idle;   // nothing in flight: the caller decides what to sample
+            (void)startSample(nextScanChannel());   // idle, so it cannot be refused
+            return Step::Busy;
 
         case Phase::StartingConversion:
             if(transactionBusy) return Step::Busy;
