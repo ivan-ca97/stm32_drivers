@@ -69,10 +69,15 @@ bool I2cBus::sendNextTransaction()
 
 void I2cBus::setTransaction(I2cTransaction& transaction)
 {
+    // Guarded. The queue count is a read-modify-write that the ISR
+    // also makes when it finishes a transaction: an update lost to it
+    // leaves the new transaction out of the count, never sent.
+    disableInterrupts();
     queue->enqueue(&transaction);
 
     if(queue->size() == 1 && state == State::Idle)
         sendNextTransaction();
+    enableInterrupts();
 }
 
 bool I2cBus::cancelUnguarded(I2cTransaction& transaction)
