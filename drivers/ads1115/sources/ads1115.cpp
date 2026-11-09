@@ -39,6 +39,11 @@ Adc::Counts Ads1115::readLatestCounts(Channel channel) const
     return static_cast<int16_t>(cache[index]);   // single aligned load; atomic w.r.t. the ISR writer
 }
 
+Adc::Input Ads1115::input(Channel channel) const
+{
+    return makeInput(uint8_t(channel));
+}
+
 void Ads1115::reset()
 {
     // Cached counts are dropped: after a reset nothing should still be reported as a

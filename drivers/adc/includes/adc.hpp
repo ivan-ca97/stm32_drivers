@@ -23,6 +23,21 @@ class Adc
         using Counts     = base::Result<int16_t>;
         using MicroVolts = base::Result<int32_t>;
 
+        // One channel of one ADC. The ADC has to outlive it.
+        class Input
+        {
+            public:
+                MicroVolts readLatestMicroVolts() const;
+
+            private:
+                Input(const Adc& adc, uint8_t channel) : adc(&adc), channel(channel) {}
+
+                const Adc* adc;
+                uint8_t channel;
+
+                friend class Adc;
+        };
+
         virtual ~Adc() = default;
 
         // Reinitialize to a known state: any acquisition in progress is abandoned,
@@ -42,13 +57,8 @@ class Adc
 
         // Reading in microvolts, derived from the above. Integer math only.
         // Truncates toward zero.
-        MicroVolts readLatestMicroVolts(uint8_t channel) const
-        {
-            auto counts = readLatestCounts(channel);
-            if(!counts)
-                return std::unexpected(counts.error());
+        MicroVolts readLatestMicroVolts(uint8_t channel) const;
 
-            return static_cast<int32_t>(
-                static_cast<int64_t>(*counts) * fullScaleMicroVolts() / fullScaleCounts());
-        }
+    protected:
+        Input makeInput(uint8_t channel) const { return Input(*this, channel); }
 };

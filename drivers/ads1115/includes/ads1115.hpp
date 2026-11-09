@@ -93,6 +93,8 @@ class Ads1115 : public Adc
         // because the interface cannot know how many channels a device has.
         Counts readLatestCounts(Channel channel) const;
 
+        Input input(Channel channel) const;
+
         // Begin a single conversion on `channel`.
         StartResult startSample(Channel channel);
 
