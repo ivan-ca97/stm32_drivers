@@ -79,6 +79,12 @@ class Timer
         void enableInterrupt();
         void disableInterrupt();
 
+        // NVIC preemption priority, 0 the most urgent.
+        uint32_t getInterruptPriority() const;
+
+        // Middle of the range: below anything that needs a short latency, above SysTick (15).
+        static constexpr uint32_t defaultInterruptPriority = 8;
+
         static Timer* getDriver(TimerSelection timer);
 
         static uint32_t getBaseClockFrequency();
@@ -107,6 +113,10 @@ class Timer
         void enableClock(TimerSelection timer);
 
         void handleInterrupt();
+
+        void setInterruptPriority(uint32_t priority);
+
+        IRQn_Type interruptNumber() const;
 
         void forceUpdate();
 

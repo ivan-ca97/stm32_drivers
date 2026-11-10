@@ -11,6 +11,7 @@ struct Timer::Config
     bool autoStart = false;
     bool enableInterrupt = false;
     bool oneShotAlarm = false;
+    uint32_t interruptPriority = Timer::defaultInterruptPriority;
     std::function<void(void*)> callback = nullptr;
     void* callbackArguments = nullptr;
     TimerSelection timer = TIMER_MAX;
@@ -41,6 +42,8 @@ class Timer::Builder
         Builder& autoStart();
 
         Builder& enableInterrupt();
+
+        Builder& setInterruptPriority(uint32_t priority);
 
         Builder& setAlarm(uint32_t count);
 

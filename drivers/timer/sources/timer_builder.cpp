@@ -31,6 +31,12 @@ Timer::Builder& Timer::Builder::enableInterrupt()
     return *this;
 }
 
+Timer::Builder& Timer::Builder::setInterruptPriority(uint32_t priority)
+{
+    config.interruptPriority = priority;
+    return *this;
+}
+
 Timer::Builder& Timer::Builder::setAlarm(uint32_t count)
 {
     config.enableInterrupt = true;

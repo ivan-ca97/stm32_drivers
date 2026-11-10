@@ -34,6 +34,8 @@ void Timer::init(const Config& config)
 
     this->initializePrescaler(config.prescaler, config.frequency);
 
+    this->setInterruptPriority(config.interruptPriority);
+
     if(config.enableInterrupt)
         this->setAlarm(config.count, config.oneShotAlarm);
 
@@ -147,33 +149,32 @@ void Timer::enableInterrupt()
     this->timerRegister->DIER |= TIM_DIER_UIE;
     this->timerRegister->CR1 |= TIM_CR1_DIR;
 
+    NVIC_EnableIRQ(interruptNumber());
+}
+
+void Timer::setInterruptPriority(uint32_t priority)
+{
+    NVIC_SetPriority(interruptNumber(), priority);
+}
+
+uint32_t Timer::getInterruptPriority() const
+{
+    return NVIC_GetPriority(interruptNumber());
+}
+
+IRQn_Type Timer::interruptNumber() const
+{
     // TODO puedo diferenciar entre TIM1, TIM9, TIM10 y TIM11?
     switch(this->timer)
     {
-        case TIMER_1:
-            NVIC_EnableIRQ(TIM1_UP_TIM10_IRQn);
-            break;
-        case TIMER_2:
-            NVIC_EnableIRQ(TIM2_IRQn);
-            break;
-        case TIMER_3:
-            NVIC_EnableIRQ(TIM3_IRQn);
-            break;
-        case TIMER_4:
-            NVIC_EnableIRQ(TIM4_IRQn);
-            break;
-        case TIMER_5:
-            NVIC_EnableIRQ(TIM5_IRQn);
-            break;
-        case TIMER_9:
-            NVIC_EnableIRQ(TIM1_BRK_TIM9_IRQn);
-            break;
-        case TIMER_10:
-            NVIC_EnableIRQ(TIM1_UP_TIM10_IRQn);
-            break;
-        case TIMER_11:
-            NVIC_EnableIRQ(TIM1_TRG_COM_TIM11_IRQn);
-            break;
+        case TIMER_1:  return TIM1_UP_TIM10_IRQn;
+        case TIMER_2:  return TIM2_IRQn;
+        case TIMER_3:  return TIM3_IRQn;
+        case TIMER_4:  return TIM4_IRQn;
+        case TIMER_5:  return TIM5_IRQn;
+        case TIMER_9:  return TIM1_BRK_TIM9_IRQn;
+        case TIMER_10: return TIM1_UP_TIM10_IRQn;
+        case TIMER_11: return TIM1_TRG_COM_TIM11_IRQn;
         default:
             throw std::exception(); // TODO custom exception
     }
