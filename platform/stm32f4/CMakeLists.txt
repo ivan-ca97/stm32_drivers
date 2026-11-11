@@ -3,6 +3,7 @@ project(stm32f4 LANGUAGES CXX)
 
 add_library(stm32f4
     ${CMAKE_CURRENT_SOURCE_DIR}/src/flash_pages.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/interrupt_guard.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/sys_tick_clock.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/unique_id_token_generator.cpp
 )
