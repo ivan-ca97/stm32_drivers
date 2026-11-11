@@ -187,7 +187,6 @@ Handler::Progress Handler::leaveMaintenance(ControllerSlave::Response& response)
     if (!peerAgreesOnParameters()) {
         return reject(response, WireError::PeerParametersDiffer);
     }
-    // Still in maintenance, so a save that has to compact may do so.
     base::Status saved = calibrationStorage_.save(localParameters_);
     if (!saved.has_value()) {
         return reject(response, WireError::CalibrationNotSaved);
