@@ -5,10 +5,10 @@
 
 #include "stm32f4xx_ll_i2c.h"
 
+#include "stm32f4/interrupt_guard.h"
+
 #define EXPECTED_TIMER_TOLERANCE_PERIOD_US 100
 #define I2C_FAST_MODE_CUTOFF_FREQUENCY 100000
-#define I2C_EVENT_IRQ_PRIORITY 1
-#define I2C_ERROR_IRQ_PRIORITY 1
 
 // Initialize with empty drivers array.
 std::array<I2cBus*, I2C_BUS_MAX> I2cBus::drivers = {};
@@ -72,12 +72,11 @@ void I2cBus::setTransaction(I2cTransaction& transaction)
     // Guarded. The queue count is a read-modify-write that the ISR
     // also makes when it finishes a transaction: an update lost to it
     // leaves the new transaction out of the count, never sent.
-    disableInterrupts();
+    stm32f4::InterruptGuard guard(interruptPriority);
     queue->enqueue(&transaction);
 
     if(queue->size() == 1 && state == State::Idle)
         sendNextTransaction();
-    enableInterrupts();
 }
 
 bool I2cBus::cancelUnguarded(I2cTransaction& transaction)
@@ -113,11 +112,8 @@ bool I2cBus::cancel(I2cTransaction& transaction)
     // and start the next one between any two instructions here. Walking them
     // unguarded would read past the end of the queue, or cancel whichever
     // transaction the ISR had just promoted instead of the intended one.
-    disableInterrupts();
-    const bool released = cancelUnguarded(transaction);
-    enableInterrupts();
-
-    return released;
+    stm32f4::InterruptGuard guard(interruptPriority);
+    return cancelUnguarded(transaction);
 }
 
 void I2cBus::eventCallback()
@@ -188,6 +184,11 @@ void I2cBus::init(const Config& config)
     timer = config.timer;
     retryIntervalMs = config.retryIntervalMs;
 
+    // BASEPRI 0 masks nothing, so InterruptGuard would not hold anything off.
+    if(config.interruptPriority == 0)
+        throw I2cException("Interrupt priority 0 cannot be guarded");
+    interruptPriority = config.interruptPriority;
+
     // Save init parameters so resetBus() can reconfigure the peripheral.
     clockSpeed      = config.clockSpeed;
     ownAddress1     = config.ownAddress1;
@@ -204,6 +205,8 @@ void I2cBus::init(const Config& config)
     {
         verifyTimer();
         timer->setCallback(timerCallback, this);
+        if(timer->getInterruptPriority() != interruptPriority)
+            throw I2cException("Retry timer priority differs from the bus's");
     }
     registerDriver(this->bus);
 
@@ -432,8 +435,8 @@ void I2cBus::enableInterrupts()
     LL_I2C_EnableIT_EVT(this->instance);
     LL_I2C_EnableIT_ERR(this->instance);
 
-    NVIC_SetPriority(hw.evIrq, I2C_EVENT_IRQ_PRIORITY);
-    NVIC_SetPriority(hw.erIrq, I2C_ERROR_IRQ_PRIORITY);
+    NVIC_SetPriority(hw.evIrq, interruptPriority);
+    NVIC_SetPriority(hw.erIrq, interruptPriority);
     NVIC_EnableIRQ(hw.evIrq);
     NVIC_EnableIRQ(hw.erIrq);
 }
@@ -454,28 +457,28 @@ void I2cBus::detachDevice(I2cDevice& device)
 {
     // Cancelling reshuffles the queue, so each pass restarts the search instead of
     // trusting an index across it.
-    disableInterrupts();
-
-    for(bool cancelledOne = true; cancelledOne; )
     {
-        cancelledOne = false;
+        stm32f4::InterruptGuard guard(interruptPriority);
 
-        for(uint16_t i = static_cast<uint16_t>(queue->size()); i-- > 0; )
+        for(bool cancelledOne = true; cancelledOne; )
         {
-            I2cTransaction* transaction = *queue->peek(i);
-            if(transaction->getAddress() != device.getAddress())
-                continue;
+            cancelledOne = false;
 
-            // A silenced one stays queued until it ends; keep looking past it.
-            if(!cancelUnguarded(*transaction))
-                continue;
+            for(uint16_t i = static_cast<uint16_t>(queue->size()); i-- > 0; )
+            {
+                I2cTransaction* transaction = *queue->peek(i);
+                if(transaction->getAddress() != device.getAddress())
+                    continue;
 
-            cancelledOne = true;
-            break;
+                // A silenced one stays queued until it ends; keep looking past it.
+                if(!cancelUnguarded(*transaction))
+                    continue;
+
+                cancelledOne = true;
+                break;
+            }
         }
     }
-
-    enableInterrupts();
 
     attachedDevices->remove(&device);
 }

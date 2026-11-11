@@ -17,6 +17,7 @@ struct I2cBus::Config
     I2cSlave* slave = nullptr;
     Timer* timer = nullptr;
     uint16_t retryIntervalMs = 10;
+    uint32_t interruptPriority = I2cBus::defaultInterruptPriority;
 };
 
 
@@ -55,4 +56,9 @@ class I2cBus::Builder
         Builder& withTimer(Timer& timer);
 
         Builder& setRetryIntervalMs(uint16_t retryIntervalMs);
+
+        // NVIC preemption priority, shared by the bus's event, error and retry-timer interrupts
+        // so none of them preempts another. Must not be 0, and the retry timer must be built
+        // with the same one.
+        Builder& setInterruptPriority(uint32_t priority);
 };

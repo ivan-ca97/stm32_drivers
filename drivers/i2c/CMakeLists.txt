@@ -27,4 +27,5 @@ target_link_libraries(i2c_driver
     custom_exception
     queue
     set
+    stm32f4
 )

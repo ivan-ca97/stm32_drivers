@@ -79,6 +79,12 @@ I2cBus::Builder& I2cBus::Builder::setRetryIntervalMs(uint16_t retryIntervalMs)
     return *this;
 }
 
+I2cBus::Builder& I2cBus::Builder::setInterruptPriority(uint32_t priority)
+{
+    config.interruptPriority = priority;
+    return *this;
+}
+
 void I2cBus::Builder::buildIn(I2cBus& target)
 {
     return target.init(config);

@@ -104,6 +104,8 @@ class I2cBus
         void enableInterrupts();
         void disableInterrupts();
 
+        static constexpr uint32_t defaultInterruptPriority = 1;
+
     protected:
         static std::array<I2cBus*, I2C_BUS_MAX> drivers;
 
@@ -137,6 +139,8 @@ class I2cBus
         Timer* timer;
 
         uint16_t retryIntervalMs;
+
+        uint32_t interruptPriority;
 
         uint32_t currentIndex;
 
