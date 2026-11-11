@@ -10,7 +10,6 @@
 namespace
 {
     constexpr uint32_t retryIntervalToleranceUs = 100;
-    constexpr uint32_t fastModeMinimumClockSpeed = 100000;
 }
 
 // Initialize with empty drivers array.
@@ -212,8 +211,6 @@ void I2cBus::init(const Config& config)
             throw I2cException("Retry timer priority differs from the bus's");
     }
     registerDriver(this->bus);
-
-    this->fastMode = config.clockSpeed >= fastModeMinimumClockSpeed;
 
     bool masterOnly = (config.ownAddress1 == 0x0) && (config.ownAddress2 == 0x0);
     if(!masterOnly)

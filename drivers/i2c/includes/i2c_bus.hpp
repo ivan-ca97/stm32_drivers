@@ -121,8 +121,6 @@ class I2cBus
 
         Selection bus;
 
-        bool fastMode;
-
         // Init parameters for auto-recovery.
         uint32_t clockSpeed;
         uint16_t ownAddress1;
