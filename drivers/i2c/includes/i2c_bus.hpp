@@ -12,8 +12,6 @@
 #include "queue.hpp"
 #include "set.hpp"
 
-#define I2C_BUS_MAX 3
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -107,7 +105,9 @@ class I2cBus
         static constexpr uint32_t defaultInterruptPriority = 1;
 
     protected:
-        static std::array<I2cBus*, I2C_BUS_MAX> drivers;
+        static constexpr uint32_t busCount = 3;
+
+        static std::array<I2cBus*, busCount> drivers;
 
         I2cSlave* slave = nullptr;
 

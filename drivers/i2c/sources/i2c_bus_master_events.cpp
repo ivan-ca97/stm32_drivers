@@ -2,9 +2,6 @@
 
 #include "stm32f4xx_ll_i2c.h"
 
-#define READ false
-#define WRITE true
-
 // ============================================================================
 // I2C master state machine (STM32 I2Cv1) — theory of operation
 //

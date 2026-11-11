@@ -7,11 +7,14 @@
 
 #include "stm32f4/interrupt_guard.h"
 
-#define EXPECTED_TIMER_TOLERANCE_PERIOD_US 100
-#define I2C_FAST_MODE_CUTOFF_FREQUENCY 100000
+namespace
+{
+    constexpr uint32_t retryIntervalToleranceUs = 100;
+    constexpr uint32_t fastModeMinimumClockSpeed = 100000;
+}
 
 // Initialize with empty drivers array.
-std::array<I2cBus*, I2C_BUS_MAX> I2cBus::drivers = {};
+std::array<I2cBus*, I2cBus::busCount> I2cBus::drivers = {};
 
 I2C_TypeDef* I2cBus::getInstance()
 {
@@ -168,7 +171,7 @@ uint32_t I2cBus::verifyTimer()
     if (expectedTicks == 0)
         throw I2cException("Retry interval too short for timer resolution");
 
-    if (abs((int32_t)(actualRetryTimeUs  - retryIntervalUs)) > EXPECTED_TIMER_TOLERANCE_PERIOD_US)
+    if (abs((int32_t)(actualRetryTimeUs  - retryIntervalUs)) > retryIntervalToleranceUs)
         throw I2cException("Misconfigured timer");
 
     return expectedTicks;
@@ -210,7 +213,7 @@ void I2cBus::init(const Config& config)
     }
     registerDriver(this->bus);
 
-    this->fastMode = config.clockSpeed >= I2C_FAST_MODE_CUTOFF_FREQUENCY;
+    this->fastMode = config.clockSpeed >= fastModeMinimumClockSpeed;
 
     bool masterOnly = (config.ownAddress1 == 0x0) && (config.ownAddress2 == 0x0);
     if(!masterOnly)
