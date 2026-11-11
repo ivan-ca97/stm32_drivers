@@ -1,7 +1,9 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 
+#include "adc.hpp"
 #include "base/passkey.h"
 #include "base/result.h"
 #include "clock.hpp"
@@ -20,8 +22,9 @@
 
 namespace reactor {
 
-// The whole cycle, from the acquisition channels to the SCRAM line, one pass per
-// service().
+// The whole cycle, from the acquisition channels to the SCRAM line, one pass every
+// pass period. service() is meant to be called as often as possible: it takes the
+// master's commands on every call, and runs a pass only once the period has elapsed.
 //
 // SCRAM is asserted in maintenance, with a latched discrepancy, with the peer
 // unreachable, or with a local level exceeded. The line is driven high only while
@@ -40,6 +43,9 @@ public:
         Builder& clock(const Clock& clock);
         Builder& mode(OperatingMode& mode);
         Builder& calibration(const ReactorParams& parameters);
+        Builder& acquisition(Adc::Input logarithmic, Adc::Input linear);
+        // Also the rate at which measurements are published.
+        Builder& passPeriod(uint32_t milliseconds);
         Builder& measurements(
             MeasurementCalculator& calculator,
             peer::MeasurementPublisher& publisher
@@ -75,6 +81,9 @@ public:
         const Clock* clock_ = nullptr;
         OperatingMode* mode_ = nullptr;
         const ReactorParams* parameters_ = nullptr;
+        std::optional<Adc::Input> logarithmic_;
+        std::optional<Adc::Input> linear_;
+        uint32_t passPeriodMs_ = 0;
         MeasurementCalculator* calculator_ = nullptr;
         peer::MeasurementPublisher* publisher_ = nullptr;
         peer::Monitor* peerMonitor_ = nullptr;
@@ -102,8 +111,7 @@ public:
     // Hand to the I2C bus the peer reads from. Read-only: commands written to it are ignored.
     ControllerSlave& peerSlave();
 
-    // One pass of the main loop, given the latest reading of each channel.
-    void service(int32_t logarithmicMicroVolts, int32_t linearMicroVolts);
+    void service();
 
     bool scramAsserted() const;
 
@@ -120,12 +128,17 @@ private:
         ControllerSlave::RequestHandler& section_;
     };
 
+    void pass();
     void recalibrateOnLeavingMaintenance(bool inMaintenance);
     void updateScram(bool inMaintenance, const ReactorMeasurements& measurements);
     bool localLimitsExceeded(const ReactorMeasurements& measurements) const;
 
+    const Clock& clock_;
     OperatingMode& mode_;
     const ReactorParams& parameters_;
+    Adc::Input logarithmic_;
+    Adc::Input linear_;
+    uint32_t passPeriodMs_;
     MeasurementCalculator& calculator_;
     peer::MeasurementPublisher& publisher_;
     peer::Monitor& peerMonitor_;
@@ -137,6 +150,7 @@ private:
     ControllerSlave commandSlave_;
     ControllerSlave peerSlave_;
 
+    uint32_t lastPass_ = 0;
     bool scram_ = true;
     bool wasInMaintenance_;
 };

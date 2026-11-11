@@ -10,6 +10,7 @@ target_include_directories(reactor_core PUBLIC
 )
 
 target_link_libraries(reactor_core PUBLIC
+    adc
     base
     controller
     operating_mode

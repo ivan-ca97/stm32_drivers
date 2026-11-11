@@ -31,6 +31,19 @@ Reactor::Builder& Reactor::Builder::calibration(const ReactorParams& parameters)
     return *this;
 }
 
+Reactor::Builder& Reactor::Builder::acquisition(Adc::Input logarithmic, Adc::Input linear)
+{
+    logarithmic_ = logarithmic;
+    linear_ = linear;
+    return *this;
+}
+
+Reactor::Builder& Reactor::Builder::passPeriod(uint32_t milliseconds)
+{
+    passPeriodMs_ = milliseconds;
+    return *this;
+}
+
 Reactor::Builder& Reactor::Builder::measurements(
     MeasurementCalculator& calculator,
     peer::MeasurementPublisher& publisher
@@ -111,6 +124,9 @@ base::Result<Reactor> Reactor::Builder::build() const
         && clock_ != nullptr
         && mode_ != nullptr
         && parameters_ != nullptr
+        && logarithmic_.has_value()
+        && linear_.has_value()
+        && passPeriodMs_ != 0
         && calculator_ != nullptr
         && publisher_ != nullptr
         && peerMonitor_ != nullptr
@@ -170,8 +186,12 @@ void Reactor::ParameterGate::abandon()
 // The builder validated every range against the others and the router's capacity,
 // so addSection() cannot refuse any of them.
 Reactor::Reactor(const Builder& parts, Permit)
-    : mode_(*parts.mode_),
+    : clock_(*parts.clock_),
+      mode_(*parts.mode_),
       parameters_(*parts.parameters_),
+      logarithmic_(*parts.logarithmic_),
+      linear_(*parts.linear_),
+      passPeriodMs_(parts.passPeriodMs_),
       calculator_(*parts.calculator_),
       publisher_(*parts.publisher_),
       peerMonitor_(*parts.peerMonitor_),
@@ -204,23 +224,39 @@ bool Reactor::scramAsserted() const
     return scram_;
 }
 
-void Reactor::service(int32_t logarithmicMicroVolts, int32_t linearMicroVolts)
+void Reactor::service()
 {
-    // Kicked on entry as well, so a pass that runs long in commandSlave_.process() still
+    // Kicked on entry as well, so a call that runs long in commandSlave_.process() still
     // gets a whole watchdog period.
     watchdog_.kick();
 
     commandSlave_.process();
 
+    if (clock_.millisecondsSince(lastPass_) >= passPeriodMs_) {
+        lastPass_ = clock_.milliseconds();
+        pass();
+    }
+
+    watchdog_.kick();
+}
+
+void Reactor::pass()
+{
     bool inMaintenance = mode_.inMaintenance();
     recalibrateOnLeavingMaintenance(inMaintenance);
 
-    ReactorMeasurements measurements = calculator_.update(logarithmicMicroVolts, linearMicroVolts);
+    // FIXME: a channel without a reading enters the pass as 0 µV, and one whose ADC stopped
+    // answering keeps its last reading. Either should be a fault that asserts SCRAM.
+    Adc::MicroVolts logarithmic = logarithmic_.readLatestMicroVolts();
+    Adc::MicroVolts linear = linear_.readLatestMicroVolts();
+    ReactorMeasurements measurements = calculator_.update(
+        logarithmic.value_or(0),
+        linear.value_or(0)
+    );
     publisher_.publish(measurements);
     peerMonitor_.service(measurements);
 
     updateScram(inMaintenance, measurements);
-    watchdog_.kick();
 }
 
 void Reactor::recalibrateOnLeavingMaintenance(bool inMaintenance)

@@ -52,7 +52,6 @@
 namespace application {
 namespace {
 
-// Pass period of the reactor, and the publishing rate of its measurements.
 constexpr uint32_t passPeriodMs = 50;
 
 // Against the 50 ms loop. The LSI is specified 17-47 kHz around 32, so 500 ms nominal
@@ -182,6 +181,7 @@ void run()
     Timer::Builder()
         .timerSelection(board::retryTimer)
         .setFrequency(1000000)
+        .setInterruptPriority(I2cBus::defaultInterruptPriority)
         .buildIn(retryTimer);
 
     I2cBusStatic<64, 8> sensorBus = I2cBus::Builder()
@@ -195,6 +195,8 @@ void run()
     I2cDevice adcDevice(board::adcAddress, &sensorBus, "ADS1115");
     Ads1115 adc(adcDevice);
     adc.setGain(Ads1115::Gain::Fsr4_096V);   // covers a 3.3 V rail
+    adc.addToScan(board::logarithmicChannel);
+    adc.addToScan(board::linearChannel);
 
     I2cDevice peerDevice(addresses.peer, &sensorBus, "peer");
 
@@ -248,6 +250,8 @@ void run()
         .clock(clock)
         .mode(mode)
         .calibration(parameters)
+        .acquisition(adc.input(board::logarithmicChannel), adc.input(board::linearChannel))
+        .passPeriod(passPeriodMs)
         .measurements(calculator, measurementPublisher)
         .peerMonitor(*peerMonitor)
         .scramOutput(scramPin)
@@ -267,10 +271,6 @@ void run()
         .enableSlave(addresses.own, core->commandSlave())
         .buildConfig();
 
-    const Ads1115::Channel channels[] = {Ads1115::Channel::Ain0, Ads1115::Channel::Ain1};
-    uint8_t nextChannel = 0;
-    uint32_t lastPass = 0;
-
     base::Status supervised = watchdog.start(watchdogTimeoutMs);
     if (!supervised.has_value()) {
         stop();
@@ -278,22 +278,8 @@ void run()
 
     while (true) {
         adc.service();
-        if (!adc.busy()) {
-            (void)adc.startSample(channels[nextChannel]);
-            nextChannel = (nextChannel + 1) % (sizeof(channels) / sizeof(channels[0]));
-        }
-
-        if (clock.millisecondsSince(lastPass) < passPeriodMs) {
-            continue;
-        }
-        lastPass = clock.milliseconds();
-
-        // Channel 0 is the logarithmic one, 1 the linear one. Without a reading yet, a
-        // channel enters as zero.
-        Adc::MicroVolts logarithmic = adc.readLatestMicroVolts(0);
-        Adc::MicroVolts linear = adc.readLatestMicroVolts(1);
-
-        core->service(logarithmic.value_or(0), linear.value_or(0));
+        core->service();
+        __WFI();
     }
 }
 

@@ -4,6 +4,7 @@
 
 #include "stm32f4xx_hal.h"
 
+#include "ads1115.hpp"
 #include "i2c_bus.hpp"
 #include "stm32f4/flash_pages.h"
 #include "timer.hpp"
@@ -39,6 +40,9 @@ inline constexpr uint32_t busSpeedHz = 100000;
 inline constexpr TimerSelection retryTimer = TIMER_2;
 
 inline constexpr uint8_t adcAddress = 0x48;   // ADS1115 with ADDR tied to GND
+
+inline constexpr Ads1115::Channel logarithmicChannel = Ads1115::Channel::Ain0;
+inline constexpr Ads1115::Channel linearChannel = Ads1115::Channel::Ain1;
 
 // The two pages of persistent storage: sectors 1 and 2, the STORAGE region of the
 // linker script, which keeps the program out of them.
