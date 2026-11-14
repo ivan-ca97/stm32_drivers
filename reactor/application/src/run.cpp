@@ -193,7 +193,7 @@ void run()
         .buildConfig();
 
     I2cDevice adcDevice(board::adcAddress, &sensorBus, "ADS1115");
-    Ads1115 adc(adcDevice);
+    Ads1115 adc(adcDevice, clock);
     adc.setGain(Ads1115::Gain::Fsr4_096V);   // covers a 3.3 V rail
     adc.addToScan(board::logarithmicChannel);
     adc.addToScan(board::linearChannel);
