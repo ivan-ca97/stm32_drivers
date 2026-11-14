@@ -8,6 +8,7 @@
 #include "adc.hpp"
 #include "ads1115_error.hpp"
 #include "base/result.h"
+#include "clock.hpp"
 
 // Ads1115 — 16-bit I2C ADC (4 single-ended channels), driven single-shot over an
 // I2cDevice.
@@ -15,6 +16,13 @@
 // Non-blocking acquisition is caller-driven: startSample() begins one conversion on
 // one channel, and service() advances it. With a scan set, service() also starts the
 // next scanned channel whenever it finds the device idle.
+//
+// Timing: a conversion is expected to take the datasheet's time for the data rate.
+// Each conversion adjusts that wait to what the device takes:
+// Found ready at the first status read, the wait shrinks by a millisecond.
+// Found still converting, it becomes the time the device needed.
+// A conversion still not done at ten times the datasheet's makes the driver fail with
+// ads1115::conversionTimeout until reset() starts it again.
 //
 // Each completed conversion lands in a per-channel cache that readLatestCounts()
 // serves without touching the bus. The cache is written from the I2C completion
@@ -60,12 +68,12 @@ class Ads1115 : public Adc
         // Single-ended inputs. Typed so a channel argument cannot be out of range.
         enum class Channel : uint8_t { Ain0, Ain1, Ain2, Ain3 };
 
-        // ads1115::busy is the only way to fail: a Channel is always valid.
+        // Fails with ads1115::busy or ads1115::conversionTimeout: a Channel is always valid.
         using StartResult = base::Status;
 
         static constexpr uint8_t MaxChannels = 4;
 
-        explicit Ads1115(I2cDevice& device) : device(device) {}
+        Ads1115(I2cDevice& device, const Clock& clock) : device(device), clock(clock) {}
 
         // Changing the gain changes what a count means, so every cached reading
         // stops being interpretable and is dropped. The data rate does not affect
@@ -76,7 +84,12 @@ class Ads1115 : public Adc
             validChannels = 0;
         }
 
-        void setDataRate(DataRate r)    { dataRate = r; }
+        // Restarts the conversion wait from the datasheet's time for the new rate.
+        void setDataRate(DataRate r)
+        {
+            dataRate = r;
+            conversionWaitMs = 0;
+        }
 
         void addToScan(Channel channel);
         void removeFromScan(Channel channel);
@@ -99,7 +112,7 @@ class Ads1115 : public Adc
         StartResult startSample(Channel channel);
 
         // True while a conversion is in flight.
-        bool busy() const { return phase != Phase::Idle; }
+        bool busy() const { return phase != Phase::Idle && phase != Phase::Stopped; }
 
         // Advance the in-flight conversion by one non-blocking step.
         Step service();
@@ -140,15 +153,28 @@ class Ads1115 : public Adc
         };
 
         // Stage of the single-conversion state machine driven by service().
-        enum class Phase : uint8_t { Idle, StartingConversion, PollingStatus, ReadingResult, Aborting };
+        enum class Phase : uint8_t
+        {
+            Idle,
+            StartingConversion,
+            WaitingConversion,
+            CheckingConversion,     // status read once the conversion should be done
+            RecheckingConversion,   // read again: the device was still converting
+            ReadingResult,
+            Aborting,
+            Stopped,                // a conversion timed out
+        };
 
         I2cDevice& device;
+        const Clock& clock;
         Gain gain = Gain::Fsr2_048V;
         DataRate dataRate = DataRate::Sps128;
 
         Phase phase = Phase::Idle;
         Channel currentChannel = Channel::Ain0;   // channel of the conversion in flight
         Gain sampleGain = Gain::Fsr2_048V;   // gain that conversion was started with
+        uint32_t conversionWaitMs = 0;
+        uint32_t conversionStartedAt = 0;
 
         volatile bool transactionDone = false;   // blocking primitives only
         volatile bool transactionError = false;
@@ -166,6 +192,9 @@ class Ads1115 : public Adc
         uint8_t scanChannels = 0;   // bit per channel: sampled in turn by service()
 
         Config singleShotConfig(Channel channel) const;
+        uint32_t conversionTimeMs() const;
+        uint32_t conversionTimeoutMs() const;
+        bool conversionDone() const;
         Channel nextScanChannel() const;
         bool writeConfig(const Config& config);             // blocking
         bool readRegister16(uint8_t reg, uint16_t& value);  // blocking

@@ -2,6 +2,13 @@
 
 #include "ads1115_registers.hpp"
 
+namespace
+{
+    // Over the datasheet's conversion time. Some parts sold as this device run several times
+    // slower than specified.
+    constexpr uint32_t conversionTimeoutFactor = 10;
+}
+
 int32_t Ads1115::fullScaleMicroVolts() const
 {
     switch(gain)
@@ -33,6 +40,8 @@ Adc::Counts Ads1115::readLatestCounts(Channel channel) const
 {
     const uint8_t index = uint8_t(channel);
 
+    if(phase == Phase::Stopped)
+        return std::unexpected(ads1115::conversionTimeout);
     if((validChannels & (1u << index)) == 0)
         return std::unexpected(adc::noData);
 
@@ -73,6 +82,35 @@ void Ads1115::removeFromScan(Channel channel)
     scanChannels &= uint8_t(~(1u << uint8_t(channel)));
 }
 
+bool Ads1115::conversionDone() const
+{
+    return (uint16_t(rxBytes[0]) << 8 | rxBytes[1]) & OsBit;
+}
+
+uint32_t Ads1115::conversionTimeoutMs() const
+{
+    return conversionTimeMs() * conversionTimeoutFactor;
+}
+
+// Longest a single-shot conversion can take at the current data rate: the nominal period
+// plus the 10 % the datasheet allows the internal oscillator to run slow, rounded up.
+uint32_t Ads1115::conversionTimeMs() const
+{
+    uint32_t periodUs = 7813;
+    switch(dataRate)
+    {
+        case DataRate::Sps8:   periodUs = 125000; break;
+        case DataRate::Sps16:  periodUs = 62500;  break;
+        case DataRate::Sps32:  periodUs = 31250;  break;
+        case DataRate::Sps64:  periodUs = 15625;  break;
+        case DataRate::Sps128: periodUs = 7813;   break;
+        case DataRate::Sps250: periodUs = 4000;   break;
+        case DataRate::Sps475: periodUs = 2106;   break;
+        case DataRate::Sps860: periodUs = 1163;   break;
+    }
+    return (periodUs * 11 / 10 + 999) / 1000;
+}
+
 // The first scanned channel after the one sampled last, wrapping around.
 Ads1115::Channel Ads1115::nextScanChannel() const
 {
@@ -87,11 +125,15 @@ Ads1115::Channel Ads1115::nextScanChannel() const
 
 Ads1115::StartResult Ads1115::startSample(Channel channel)
 {
+    if(phase == Phase::Stopped)
+        return std::unexpected(ads1115::conversionTimeout);
     if(busy())
         return std::unexpected(ads1115::busy);
 
     currentChannel = channel;
     sampleGain = gain;   // remembered so the result can be rejected if the gain changes mid-flight
+    if(conversionWaitMs == 0)
+        conversionWaitMs = conversionTimeMs();
     transactionFailed = false;
     dispatchConfigWrite(singleShotConfig(channel));
     phase = Phase::StartingConversion;
@@ -115,26 +157,60 @@ Ads1115::Step Ads1115::service()
                 phase = Phase::Idle;
                 return Step::Failed;
             }
-            dispatchStatusRead();
-            phase = Phase::PollingStatus;
+            conversionStartedAt = clock.milliseconds();
+            phase = Phase::WaitingConversion;
             return Step::Busy;
 
-        case Phase::PollingStatus:
+        case Phase::WaitingConversion:
+            if(clock.millisecondsSince(conversionStartedAt) < conversionWaitMs)
+                return Step::Busy;
+            dispatchStatusRead();
+            phase = Phase::CheckingConversion;
+            return Step::Busy;
+
+        case Phase::CheckingConversion:
             if(transactionBusy) return Step::Busy;
             if(transactionFailed)
             {
                 phase = Phase::Idle;
                 return Step::Failed;
             }
-            if((uint16_t(rxBytes[0]) << 8 | rxBytes[1]) & OsBit)
+            if(conversionDone())
             {
+                // The device may have needed less than the wait, so the next one is shorter.
+                if(conversionWaitMs > 1)
+                    conversionWaitMs--;
                 dispatchResultRead();
                 phase = Phase::ReadingResult;
             }
             else
             {
-                dispatchStatusRead();   // not ready yet -> poll again
+                dispatchStatusRead();
+                phase = Phase::RecheckingConversion;
             }
+            return Step::Busy;
+
+        case Phase::RecheckingConversion:
+            if(transactionBusy) return Step::Busy;
+            if(transactionFailed)
+            {
+                phase = Phase::Idle;
+                return Step::Failed;
+            }
+            if(conversionDone())
+            {
+                // Adapt the conversion wait time.
+                conversionWaitMs = clock.millisecondsSince(conversionStartedAt);
+                dispatchResultRead();
+                phase = Phase::ReadingResult;
+            }
+            else if(clock.millisecondsSince(conversionStartedAt) >= conversionTimeoutMs())
+            {
+                phase = Phase::Stopped;
+                return Step::Failed;
+            }
+            else
+                dispatchStatusRead();
             return Step::Busy;
 
         case Phase::ReadingResult:
@@ -148,6 +224,9 @@ Ads1115::Step Ads1115::service()
             discardInFlight = false;
             transactionFailed = false;
             phase = Phase::Idle;
+            return Step::Idle;
+
+        case Phase::Stopped:
             return Step::Idle;
     }
     return Step::Idle;

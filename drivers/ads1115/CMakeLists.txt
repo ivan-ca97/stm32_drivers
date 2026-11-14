@@ -13,4 +13,5 @@ target_include_directories(ads1115_driver PUBLIC
 target_link_libraries(ads1115_driver PUBLIC
     i2c_driver
     adc
+    clock
 )

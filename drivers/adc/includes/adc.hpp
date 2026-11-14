@@ -47,6 +47,7 @@ class Adc
         // Most recent count for `channel`. Never blocks. Fails with InvalidChannel if
         // the index does not exist on this device, or with NoData if there is no
         // reading to report — a device must not pass off a default as a measurement.
+        // A device that has stopped acquiring fails with its own error until reset().
         virtual Counts readLatestCounts(uint8_t channel) const = 0;
 
         // Digital full-scale magnitude: counts range is [-fullScaleCounts, fullScaleCounts-1].

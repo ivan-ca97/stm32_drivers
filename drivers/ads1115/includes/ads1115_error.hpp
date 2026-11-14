@@ -8,6 +8,7 @@ namespace ads1115
     enum class Code
     {
         Busy,
+        ConversionTimeout,
     };
 
     class Category final : public base::ErrorCategory
@@ -20,6 +21,8 @@ namespace ads1115
                 switch(static_cast<Code>(code))
                 {
                     case Code::Busy: return "an acquisition is already running";
+                    case Code::ConversionTimeout:
+                        return "a conversion never finished, acquisition stopped until reset";
                 }
                 return "unknown error";
             }
@@ -28,4 +31,8 @@ namespace ads1115
     inline constexpr Category errorCategory{};
 
     inline constexpr base::Error busy{errorCategory, static_cast<int>(Code::Busy)};
+    inline constexpr base::Error conversionTimeout{
+        errorCategory,
+        static_cast<int>(Code::ConversionTimeout),
+    };
 }
