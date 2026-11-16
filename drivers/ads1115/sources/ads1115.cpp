@@ -2,6 +2,8 @@
 
 #include "ads1115_registers.hpp"
 
+#include <atomic>
+
 namespace
 {
     // Over the datasheet's conversion time. Some parts sold as this device run several times
@@ -28,7 +30,7 @@ float Ads1115::toVolts(int16_t raw) const
     return float(raw) * (float(fullScaleMicroVolts()) / float(fullScaleCounts())) / 1.0e6f;
 }
 
-Adc::Counts Ads1115::readLatestCounts(uint8_t channel) const
+Adc::Reading Ads1115::readLatestCounts(uint8_t channel) const
 {
     if(channel >= MaxChannels)
         return std::unexpected(adc::invalidChannel);
@@ -36,16 +38,22 @@ Adc::Counts Ads1115::readLatestCounts(uint8_t channel) const
     return readLatestCounts(Channel(channel));
 }
 
-Adc::Counts Ads1115::readLatestCounts(Channel channel) const
+Adc::Reading Ads1115::readLatestCounts(Channel channel) const
 {
     const uint8_t index = uint8_t(channel);
 
     if(phase == Phase::Stopped)
         return std::unexpected(ads1115::conversionTimeout);
+    if(channel == currentChannel)
+        if(const auto counts = receivedResult())
+            return Sample{
+                *counts,
+                conversionStartedAt
+            };
     if((validChannels & (1u << index)) == 0)
         return std::unexpected(adc::noData);
 
-    return static_cast<int16_t>(cache[index]);   // single aligned load; atomic w.r.t. the ISR writer
+    return cachedSamples[index];
 }
 
 Adc::Input Ads1115::input(Channel channel) const
@@ -65,10 +73,9 @@ void Ads1115::reset()
         return;
     }
 
-    // A transaction is already on the bus and cannot be recalled, but its result can
-    // be thrown away. Aborting keeps busy() true until it drains, so nothing is
+    // A transaction is already on the bus and cannot be recalled, but its result is not
+    // filed from Aborting. Aborting keeps busy() true until it drains, so nothing is
     // dispatched on top of it.
-    discardInFlight = true;
     phase = Phase::Aborting;
 }
 
@@ -82,9 +89,30 @@ void Ads1115::removeFromScan(Channel channel)
     scanChannels &= uint8_t(~(1u << uint8_t(channel)));
 }
 
+// True once the bus has finished the transaction.
+bool Ads1115::transactionFinished() const
+{
+    if(transactionBusy)
+        return false;
+    // rxBytes is not volatile: without this the compiler may read it before the flag.
+    std::atomic_signal_fence(std::memory_order_acquire);
+    return true;
+}
+
 bool Ads1115::conversionDone() const
 {
     return (uint16_t(rxBytes[0]) << 8 | rxBytes[1]) & OsBit;
+}
+
+// The count of a conversion result the bus has finished receiving, if it still means
+// something.
+std::optional<int16_t> Ads1115::receivedResult() const
+{
+    if(phase != Phase::ReadingResult || !transactionFinished() || transactionFailed)
+        return std::nullopt;
+    if(sampleGain != gain)
+        return std::nullopt;
+    return int16_t(uint16_t(rxBytes[0]) << 8 | rxBytes[1]);
 }
 
 uint32_t Ads1115::conversionTimeoutMs() const
@@ -151,7 +179,7 @@ Ads1115::Step Ads1115::service()
             return Step::Busy;
 
         case Phase::StartingConversion:
-            if(transactionBusy) return Step::Busy;
+            if(!transactionFinished()) return Step::Busy;
             if(transactionFailed)
             {
                 phase = Phase::Idle;
@@ -169,7 +197,7 @@ Ads1115::Step Ads1115::service()
             return Step::Busy;
 
         case Phase::CheckingConversion:
-            if(transactionBusy) return Step::Busy;
+            if(!transactionFinished()) return Step::Busy;
             if(transactionFailed)
             {
                 phase = Phase::Idle;
@@ -191,7 +219,7 @@ Ads1115::Step Ads1115::service()
             return Step::Busy;
 
         case Phase::RecheckingConversion:
-            if(transactionBusy) return Step::Busy;
+            if(!transactionFinished()) return Step::Busy;
             if(transactionFailed)
             {
                 phase = Phase::Idle;
@@ -214,14 +242,19 @@ Ads1115::Step Ads1115::service()
             return Step::Busy;
 
         case Phase::ReadingResult:
-            if(transactionBusy) return Step::Busy;
+            if(!transactionFinished()) return Step::Busy;
+            if(const auto counts = receivedResult())
+            {
+                const uint8_t index = uint8_t(currentChannel);
+                cachedSamples[index] = Sample{*counts, conversionStartedAt};
+                validChannels |= uint8_t(1u << index);
+            }
             phase = Phase::Idle;
             if(transactionFailed) return Step::Failed;
-            return Step::Completed;   // the callback already stored the count
+            return Step::Completed;
 
         case Phase::Aborting:
-            if(transactionBusy) return Step::Busy;   // wait for the bus to drain
-            discardInFlight = false;
+            if(!transactionFinished()) return Step::Busy;   // wait for the bus to drain
             transactionFailed = false;
             phase = Phase::Idle;
             return Step::Idle;
@@ -273,7 +306,7 @@ void Ads1115::dispatchResultRead()
         .setDirection(I2cTransaction::RX)
         .withData(rxBytes, 2)
         .withRegister(RegConversion, 1)
-        .withPostCallback(onResultReady, this)
+        .withPostCallback(onStepDone, this)
         .withErrorCallback(onStepError, this)
         .build();
 
@@ -290,24 +323,6 @@ void Ads1115::onStepError(void* self)
     Ads1115* ads = static_cast<Ads1115*>(self);
     ads->transactionBusy = false;
     ads->transactionFailed = true;
-}
-
-void Ads1115::onResultReady(void* self)
-{
-    Ads1115* ads = static_cast<Ads1115*>(self);
-    const uint8_t index = uint8_t(ads->currentChannel);
-
-    // Publish only if this count still means something: a reset() abandoned the
-    // conversion, or a setGain() changed the scale it was taken at.
-    const bool usable = !ads->discardInFlight && ads->sampleGain == ads->gain;
-
-    if(usable)
-    {
-        ads->cache[index] = int16_t((uint16_t(ads->rxBytes[0]) << 8) | ads->rxBytes[1]);
-        ads->validChannels |= uint8_t(1u << index);
-    }
-
-    ads->transactionBusy = false;
 }
 
 // ============================================================================

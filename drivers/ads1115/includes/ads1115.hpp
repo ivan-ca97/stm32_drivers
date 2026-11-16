@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <array>
+#include <optional>
 
 #include "i2c_device.hpp"
 #include "i2c_transaction.hpp"
@@ -24,11 +25,10 @@
 // A conversion still not done at ten times the datasheet's makes the driver fail with
 // ads1115::conversionTimeout until reset() starts it again.
 //
-// Each completed conversion lands in a per-channel cache that readLatestCounts()
-// serves without touching the bus. The cache is written from the I2C completion
-// callback (ISR); a single aligned int16_t store/load is atomic here, so no lock is
-// needed. Until a channel has been converted at the gain currently in effect it
-// reports NoData.
+// Each completed conversion lands in a per-channel cache, with the time it started, that
+// readLatestCounts() serves without touching the bus. A result already received but not
+// yet filed by service() is served as well. Until a channel has been converted at the gain
+// currently in effect it reports NoData.
 class Ads1115 : public Adc
 {
     public:
@@ -96,7 +96,7 @@ class Ads1115 : public Adc
 
         // --- ADC ---
         void reset() override;
-        Counts readLatestCounts(uint8_t channel) const override;
+        Reading readLatestCounts(uint8_t channel) const override;
         int32_t fullScaleCounts() const override { return 32768; }
         int32_t fullScaleMicroVolts() const override;
 
@@ -104,7 +104,7 @@ class Ads1115 : public Adc
 
         // Typed read, always in range. The Adc override above takes a raw index
         // because the interface cannot know how many channels a device has.
-        Counts readLatestCounts(Channel channel) const;
+        Reading readLatestCounts(Channel channel) const;
 
         Input input(Channel channel) const;
 
@@ -181,21 +181,21 @@ class Ads1115 : public Adc
 
         volatile bool transactionBusy = false;   // service() path only
         volatile bool transactionFailed = false;
-        volatile bool discardInFlight = false;   // drop the result the ISR is about to receive
 
         I2cTransaction pendingTransaction;   // member: the bus queues its address, must stay stable
         uint8_t configTxBytes[2] = {};
         uint8_t rxBytes[2] = {};
 
-        volatile int16_t cache[MaxChannels] = {};   // per channel; see class comment
-        volatile uint8_t validChannels = 0;   // bit per channel: cache[i] holds a real reading
+        Sample cachedSamples[MaxChannels] = {};
+        uint8_t validChannels = 0;   // bit per channel: the cache holds a real reading
         uint8_t scanChannels = 0;   // bit per channel: sampled in turn by service()
 
         Config singleShotConfig(Channel channel) const;
         uint32_t conversionTimeMs() const;
         uint32_t conversionTimeoutMs() const;
+        bool transactionFinished() const;
         bool conversionDone() const;
-        Channel nextScanChannel() const;
+        std::optional<int16_t> receivedResult() const;        Channel nextScanChannel() const;
         bool writeConfig(const Config& config);             // blocking
         bool readRegister16(uint8_t reg, uint16_t& value);  // blocking
 
@@ -205,5 +205,4 @@ class Ads1115 : public Adc
 
         static void onStepDone(void* self);
         static void onStepError(void* self);
-        static void onResultReady(void* self);
 };
