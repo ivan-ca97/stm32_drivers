@@ -247,11 +247,11 @@ void Reactor::pass()
 
     // FIXME: a channel without a reading enters the pass as 0 µV, and one whose ADC stopped
     // answering keeps its last reading. Either should be a fault that asserts SCRAM.
-    Adc::MicroVolts logarithmic = logarithmic_.readLatestMicroVolts();
-    Adc::MicroVolts linear = linear_.readLatestMicroVolts();
+    Adc::Reading logarithmic = logarithmic_.readLatestMicroVolts();
+    Adc::Reading linear = linear_.readLatestMicroVolts();
     ReactorMeasurements measurements = calculator_.update(
-        logarithmic.value_or(0),
-        linear.value_or(0)
+        logarithmic.has_value() ? logarithmic->value : 0,
+        linear.has_value() ? linear->value : 0
     );
     publisher_.publish(measurements);
     peerMonitor_.service(measurements);
