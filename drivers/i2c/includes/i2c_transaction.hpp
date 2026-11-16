@@ -36,8 +36,6 @@ class I2cTransaction
 
         void setByte(uint8_t byte, uint16_t index);
 
-        uint8_t* getDataPointer();
-
         uint16_t getDataLengthBytes();
 
         uint32_t getRegister();
@@ -74,7 +72,7 @@ class I2cTransaction
         Direction direction;
         State state = IDLE;
 
-        uint8_t* data;
+        volatile uint8_t* data;
         uint16_t dataBytes;
         uint32_t deviceRegister;
         uint8_t deviceRegisterBytes;
@@ -94,7 +92,7 @@ class I2cTransaction::Builder
     public:
         Builder& setDirection(Direction direction);
 
-        Builder& withData(uint8_t* data, uint16_t sizeBytes);
+        Builder& withData(volatile uint8_t* data, uint16_t sizeBytes);
 
         Builder& withRegister(uint32_t deviceRegister, uint8_t length = 1);
 

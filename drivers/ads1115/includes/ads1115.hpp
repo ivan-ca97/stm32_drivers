@@ -184,7 +184,7 @@ class Ads1115 : public Adc
 
         I2cTransaction pendingTransaction;   // member: the bus queues its address, must stay stable
         uint8_t configTxBytes[2] = {};
-        uint8_t rxBytes[2] = {};
+        volatile uint8_t rxBytes[2] = {};
 
         Sample cachedSamples[MaxChannels] = {};
         uint8_t validChannels = 0;   // bit per channel: the cache holds a real reading
@@ -193,9 +193,9 @@ class Ads1115 : public Adc
         Config singleShotConfig(Channel channel) const;
         uint32_t conversionTimeMs() const;
         uint32_t conversionTimeoutMs() const;
-        bool transactionFinished() const;
         bool conversionDone() const;
-        std::optional<int16_t> receivedResult() const;        Channel nextScanChannel() const;
+        std::optional<int16_t> receivedResult() const;
+        Channel nextScanChannel() const;
         bool writeConfig(const Config& config);             // blocking
         bool readRegister16(uint8_t reg, uint16_t& value);  // blocking
 

@@ -2,8 +2,6 @@
 
 #include "ads1115_registers.hpp"
 
-#include <atomic>
-
 namespace
 {
     // Over the datasheet's conversion time. Some parts sold as this device run several times
@@ -89,16 +87,6 @@ void Ads1115::removeFromScan(Channel channel)
     scanChannels &= uint8_t(~(1u << uint8_t(channel)));
 }
 
-// True once the bus has finished the transaction.
-bool Ads1115::transactionFinished() const
-{
-    if(transactionBusy)
-        return false;
-    // rxBytes is not volatile: without this the compiler may read it before the flag.
-    std::atomic_signal_fence(std::memory_order_acquire);
-    return true;
-}
-
 bool Ads1115::conversionDone() const
 {
     return (uint16_t(rxBytes[0]) << 8 | rxBytes[1]) & OsBit;
@@ -108,7 +96,7 @@ bool Ads1115::conversionDone() const
 // something.
 std::optional<int16_t> Ads1115::receivedResult() const
 {
-    if(phase != Phase::ReadingResult || !transactionFinished() || transactionFailed)
+    if(phase != Phase::ReadingResult || transactionBusy || transactionFailed)
         return std::nullopt;
     if(sampleGain != gain)
         return std::nullopt;
@@ -179,7 +167,7 @@ Ads1115::Step Ads1115::service()
             return Step::Busy;
 
         case Phase::StartingConversion:
-            if(!transactionFinished()) return Step::Busy;
+            if(transactionBusy) return Step::Busy;
             if(transactionFailed)
             {
                 phase = Phase::Idle;
@@ -197,7 +185,7 @@ Ads1115::Step Ads1115::service()
             return Step::Busy;
 
         case Phase::CheckingConversion:
-            if(!transactionFinished()) return Step::Busy;
+            if(transactionBusy) return Step::Busy;
             if(transactionFailed)
             {
                 phase = Phase::Idle;
@@ -219,7 +207,7 @@ Ads1115::Step Ads1115::service()
             return Step::Busy;
 
         case Phase::RecheckingConversion:
-            if(!transactionFinished()) return Step::Busy;
+            if(transactionBusy) return Step::Busy;
             if(transactionFailed)
             {
                 phase = Phase::Idle;
@@ -242,7 +230,7 @@ Ads1115::Step Ads1115::service()
             return Step::Busy;
 
         case Phase::ReadingResult:
-            if(!transactionFinished()) return Step::Busy;
+            if(transactionBusy) return Step::Busy;
             if(const auto counts = receivedResult())
             {
                 const uint8_t index = uint8_t(currentChannel);
@@ -254,7 +242,7 @@ Ads1115::Step Ads1115::service()
             return Step::Completed;
 
         case Phase::Aborting:
-            if(!transactionFinished()) return Step::Busy;   // wait for the bus to drain
+            if(transactionBusy) return Step::Busy;   // wait for the bus to drain
             transactionFailed = false;
             phase = Phase::Idle;
             return Step::Idle;

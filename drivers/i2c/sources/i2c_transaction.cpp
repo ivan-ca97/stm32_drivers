@@ -39,11 +39,6 @@ void I2cTransaction::setByte(uint8_t byte, uint16_t index)
     data[index] = byte;
 }
 
-uint8_t* I2cTransaction::getDataPointer()
-{
-    return data;
-}
-
 uint16_t I2cTransaction::getDataLengthBytes()
 {
     return dataBytes;
@@ -105,7 +100,7 @@ I2cTransaction::Builder& I2cTransaction::Builder::setDirection(Direction directi
     return *this;
 }
 
-I2cTransaction::Builder& I2cTransaction::Builder::withData(uint8_t* data, uint16_t sizeBytes)
+I2cTransaction::Builder& I2cTransaction::Builder::withData(volatile uint8_t* data, uint16_t sizeBytes)
 {
     transaction.data = data;
     transaction.dataBytes = sizeBytes;
